@@ -14,7 +14,7 @@ import { fileURLToPath } from 'url';
 import bcrypt from 'bcrypt';
 import cloudinary from 'cloudinary';
 import { v4 as uuidv4 } from 'uuid';
-
+const authenticateToken = require('./authenticateToken');
 
 const DB_HOST = process.env.DB_HOST;
 const DB_PORT = process.env.DB_PORT;
@@ -1452,23 +1452,9 @@ app.get("/NombreUser", async (req, res) => {
     }
 });
 
-app.get("/IDINST", async (req, res) => {
+app.get("/IDINST", authenticateToken, async (req, res) => {
     try {
-        const token = req.cookies.token;
-        console.log("token en IDINST"+token)
-        if (!token) {
-            return res.status(401).json({ error: 'No se proporcionó un token' });
-        }
-
-        let decoded;
-        try {
-            decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
-        } catch (err) {
-            console.error('Error al verificar el token:', err);
-            return res.status(401).json({ error: 'Token inválido' });
-        }
-
-        const rut = decoded.rut;
+        const rut = req.user.rut;
 
         const [rows] = await db.query("SELECT IDINST FROM usuarios WHERE RUTU = ?", [rut]);
 
@@ -1482,7 +1468,6 @@ app.get("/IDINST", async (req, res) => {
         res.status(500).json({ error: 'Error al ejecutar la consulta' });
     }
 });
-
 
 
 app.get("/NombreInstalacion", async (req, res) => {
