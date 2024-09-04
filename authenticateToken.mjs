@@ -1,5 +1,5 @@
 import jwt from "jsonwebtoken";
-dotenv.config();
+
 const authenticateToken = (req, res, next) => {
     const token = req.cookies.token;
 
@@ -17,4 +17,5 @@ const authenticateToken = (req, res, next) => {
     }
 };
 
-module.exports = authenticateToken;
+// Exporta authenticateToken como default
+export default authenticateToken;
