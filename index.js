@@ -14,7 +14,7 @@ import { fileURLToPath } from 'url';
 import bcrypt from 'bcrypt';
 import cloudinary from 'cloudinary';
 import { v4 as uuidv4 } from 'uuid';
-import authenticateToken from './authMiddleware.js';
+import authenticateToken from './authenticateToken.js';
 
 const DB_HOST = process.env.DB_HOST;
 const DB_PORT = process.env.DB_PORT;
