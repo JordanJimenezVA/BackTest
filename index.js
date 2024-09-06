@@ -48,7 +48,7 @@ cloudinary.config({
 
 
 app.use(cors({
-    origin: ["http://localhost:5173", "https://sistemasandes.vercel.app"],
+    origin: ["http://localhost:5173", "https://sistemasandes.vercel.app", "https://frontendtest-production-d15e.up.railway.app/"],
     methods: ["POST", "GET", "DELETE", "PUT"],
     credentials: true,
 }));
