@@ -129,10 +129,10 @@ app.post('/Login', async (req, res) => {
                 // Establecer la cookie
                 res.cookie('token', token, {
                     httpOnly: true,
-                    secure: process.env.NODE_ENV === 'production', // true en producción, false en desarrollo
-                    maxAge: 24 * 60 * 60 * 1000,
-                    sameSite: process.env.NODE_ENV === 'production' ? 'None' : 'Lax', // None en producción, Lax en desarrollo
-                });
+                    secure: process.env.NODE_ENV === 'production', // Asegúrate de usar `https` en producción
+                    maxAge: 24 * 60 * 60 * 1000, // 1 día
+                    sameSite: 'None',  // Necesario para permitir cookies en navegadores con restricciones
+                  });
 
                 return res.json({ Status: "Success" });
             } else {
