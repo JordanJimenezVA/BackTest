@@ -48,7 +48,7 @@ cloudinary.config({
 
 
 app.use(cors({
-    origin: ["http://localhost:5173", "https://sistemasandes.vercel.app", "https://frontendtest-production-d15e.up.railway.app/"],
+    origin: ["http://localhost:5173", "https://sistemasandes.vercel.app", "https://frontendtest-production-d15e.up.railway.app/", "http://localhost:3000" ,"https://vivacious-enthusiasm-production.up.railway.app" ],
     methods: ["POST", "GET", "DELETE", "PUT"],
     credentials: true,
 }));
@@ -59,6 +59,7 @@ app.listen(PORT, () => {
 
 app.use('/ChartBox', authenticateToken);
 app.use('/TopBox', authenticateToken);
+
 
 
 app.use(bodyParser.json({ limit: '50mb' }));
@@ -131,7 +132,7 @@ app.post('/Login', async (req, res) => {
                     httpOnly: true,
                     secure: process.env.NODE_ENV === 'production', // Asegúrate de usar `https` en producción
                     maxAge: 24 * 60 * 60 * 1000, // 1 día
-                    sameSite: 'None',  // Necesario para permitir cookies en navegadores con restricciones
+                    sameSite: 'lax',  // Necesario para permitir cookies en navegadores con restricciones
                   });
 
                 return res.json({ Status: "Success" });
@@ -1455,16 +1456,9 @@ app.get("/NombreUser", async (req, res) => {
 });
 
 app.get("/IDINST", authenticateToken, async (req, res) => {
-    const token = req.cookies.token;
-
-    if (!token) {
-        return res.status(401).json({ error: 'No se proporcionó un token' });
-    }
+    const rut = req.user.rut; // Ya se verifica en el middleware
 
     try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
-        const rut = decoded.rut;
-
         const [rows] = await db.query("SELECT IDINST FROM usuarios WHERE RUTU = ?", [rut]);
 
         if (rows.length > 0) {
@@ -1473,10 +1467,11 @@ app.get("/IDINST", authenticateToken, async (req, res) => {
             return res.status(404).json({ error: 'Usuario no encontrado' });
         }
     } catch (error) {
-        console.error('Error al verificar el token:', error);
-        return res.status(401).json({ error: 'Token inválido o expirado' });
+        console.error('Error al consultar la base de datos:', error);
+        return res.status(500).json({ error: 'Error del servidor' });
     }
 });
+
 
 
 

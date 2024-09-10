@@ -6,10 +6,14 @@ const authenticateToken = (req, res, next) => {
     if (!token) return res.sendStatus(401); // No hay token, respuesta no autorizada
 
     jwt.verify(token, process.env.JWT_SECRET_KEY, (err, user) => {
-        if (err) return res.sendStatus(403); // Token no válido
-
-        req.user = user; // Almacena la información del usuario en el request
-        next(); // Continúa con la siguiente función de middleware
+        if (err) {
+            console.log('Error al verificar el token:', err);
+            return res.sendStatus(403); // Token no válido
+        }
+    
+        console.log('Token verificado, usuario:', user);
+        req.user = user;
+        next();
     });
 };
 
