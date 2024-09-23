@@ -11,7 +11,6 @@ const authenticateToken = (req, res, next) => {
             return res.sendStatus(403); // Token no válido
         }
     
-        console.log('Token verificado, usuario:', user);
         req.user = user;
         next();
     });

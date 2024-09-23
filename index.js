@@ -8,12 +8,11 @@ import bodyParser from "body-parser";
 import { createPool } from 'mysql2/promise';
 import { PORT } from './config.js';
 import multer from 'multer';
-import * as fs from 'fs';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
+import { dirname } from 'path';
 import bcrypt from 'bcrypt';
-import cloudinary from 'cloudinary';
-import { v4 as uuidv4 } from 'uuid';
 import authenticateToken from './authenticateToken.mjs';
 
 const DB_HOST = process.env.DB_HOST;
@@ -21,9 +20,7 @@ const DB_PORT = process.env.DB_PORT;
 const DB_USER = process.env.DB_USER;
 const DB_PASSWORD = process.env.DB_PASSWORD;
 const DB_DATABASE = process.env.DB_DATABASE;
-const CLOUD_NAME = process.env.CLOUD_NAME;
-const CLOUD_API = process.env.CLOUD_API;
-const CLOUD_KEY = process.env.CLOUD_KEY;
+
 
 
 const app = express();
@@ -35,16 +32,11 @@ export const db = createPool({
     port: DB_PORT,
     user: DB_USER,
     password: DB_PASSWORD,
-    database: DB_DATABASE
+    database: DB_DATABASE,
+    waitForConnections: true,
+    connectionLimit: 6,  // Número máximo de conexiones simultáneas
+    queueLimit: 0
 })
-
-cloudinary.config({
-    cloud_name: CLOUD_NAME,
-    api_key: CLOUD_API,
-    api_secret: CLOUD_KEY
-});
-
-
 
 
 app.use(cors({
@@ -64,20 +56,29 @@ app.use('/TopBox', authenticateToken);
 
 app.use(bodyParser.json({ limit: '50mb' }));
 app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
-// const storage = multer.diskStorage({
-//     destination: function (req, file, cb) {
-//         cb(null, 'imagenes/')
-//     },
-//     filename: function (req, file, cb) {
-//         cb(null, file.fieldname + '-' + Date.now() + '.jpg')
-//     }
-// })
-const upload = multer({ storage: multer.memoryStorage() });
+
 
 
 const __filename = fileURLToPath(import.meta.url);
-// Obtén el directorio del archivo actual
-const __dirname = path.dirname(__filename);
+const __dirname = dirname(__filename);
+
+const dir = path.join(__dirname, 'imagenes');
+if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir);  // Crea la carpeta si no existe
+}
+
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, dir);  // Establecer la carpeta donde se guardarán las imágenes
+    },
+    filename: function (req, file, cb) {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, uniqueSuffix + '-' + file.originalname); // Nombre único para evitar colisiones
+    }
+});
+
+const upload = multer({ storage: storage });
+
 app.use('/imagenes', express.static(path.join(__dirname, 'imagenes')));
 
 // GESTION LOGIN
@@ -129,11 +130,11 @@ app.post('/Login', async (req, res) => {
 
                 // Establecer la cookie
                 res.cookie('token', token, {
-                    httpOnly: true,
-                    secure: process.env.NODE_ENV === 'production', // Asegúrate de usar `https` en producción
+                    httpOnly: false,
+                    secure: process.env.NODE_ENV === 'production',  // Solo HTTPS en producción
                     maxAge: 24 * 60 * 60 * 1000, // 1 día
-                    sameSite: 'lax',  // Necesario para permitir cookies en navegadores con restricciones
-                  });
+                    sameSite: process.env.NODE_ENV === 'production' ? 'None' : 'Lax',  // 'None' para cross-origin en producción
+                });
 
                 return res.json({ Status: "Success" });
             } else {
@@ -265,7 +266,12 @@ app.get("/VerInforme/:IDR", async (req, res) => {
 //GESTION REVISION
 app.get("/Revision", async (req, res) => {
     try {
-        const [rows, fields] = await db.query("SELECT * FROM registros WHERE rol = 'CAMION' AND chequeado = 'NO'");
+        const [rows, fields] = await db.query(`
+            SELECT * 
+            FROM registros 
+            WHERE rol IN ('CAMION', 'SEMIREMOLQUE', 'TRACTOCAMION', 'CHASIS CABINADO', 'REMOLQUE', 'OtrosCA') 
+            AND chequeado = 'NO'
+        `);
         res.json(rows);
     } catch (error) {
         console.error('Error al ejecutar la consulta:', error);
@@ -1154,8 +1160,6 @@ app.post("/marcarSalida", (req, res) => {
             res.status(500).send('Error al marcar salida');
             return;
         }
-
-        console.log('Salida registrada correctamente:', result);
         res.send('Salida registrada correctamente');
     });
 });
@@ -1218,49 +1222,27 @@ app.get("/TablaNovedad", async (req, res) => {
 
 
 
-// app.post("/AgregarNO", upload.array('FOTOSNO'), async (req, res) => {
+app.post("/AgregarNO", upload.array('FOTOSNO', 10), async (req, res) => {
+    const NotaNO = req.body.NotaNO;
+    const GuardiaNO = req.body.GuardiaNO;
+    const HoraNO = req.body.HoraNO;
+    const IDINST = req.body.IDINST;
 
-//     const NotaNO = req.body.NotaNO;
-//     const GuardiaNO = req.body.GuardiaNO;
-//     const HoraNO = req.body.HoraNO;
-//     const IDINST = req.body.IDINST;
-//     const FOTOSNO = req.files ? req.files.map(file => file.filename) : [];
-//     try {
-//         await db.query('INSERT INTO novedades (HORANO, GUARDIANO, NOTANO, FOTOSNO, IDINST ) VALUES (?, ?, ?, ?, ?)', [HoraNO, GuardiaNO, NotaNO, FOTOSNO.join(', '), IDINST]);
-
-//         res.send('Novedad registrada con exito');
-//     } catch (error) {
-//         console.error('Error al registrar ingreso:', error);
-//         res.status(500).send('Error al registrar ingreso');
-//     }
-// });
-app.post('/AgregarNO', upload.array('FOTOSNO'), async (req, res) => {
-    const { NotaNO, GuardiaNO, HoraNO, IDINST } = req.body;
+    // Obtener los nombres de los archivos subidos
+    const FOTOSNO = req.files ? req.files.map(file => file.filename) : [];
 
     try {
-        // Subir imágenes a Cloudinary
-        const uploadedImages = await Promise.all(
-            req.files.map((file) => uploadToCloudinary(file.buffer))
-        );
-
-        // Obtener URLs de las imágenes subidas
-        const imageUrls = uploadedImages.join(', ');
-
-        // Guardar los datos en la base de datos
-        await db.query('INSERT INTO novedades (HORANO, GUARDIANO, NOTANO, FOTOSNO, IDINST) VALUES (?, ?, ?, ?, ?)', [
-            HoraNO,
-            GuardiaNO,
-            NotaNO,
-            imageUrls,
-            IDINST,
-        ]);
+        // Guarda los datos en la base de datos
+        await db.query('INSERT INTO novedades (HORANO, GUARDIANO, NOTANO, FOTOSNO, IDINST ) VALUES (?, ?, ?, ?, ?)', 
+        [HoraNO, GuardiaNO, NotaNO, FOTOSNO.join(', '), IDINST]);
 
         res.send('Novedad registrada con éxito');
     } catch (error) {
-        console.error('Error al registrar ingreso:', error);
-        res.status(500).send('Error al registrar ingreso');
+        console.error('Error al registrar la novedad:', error);
+        res.status(500).send('Error al registrar la novedad');
     }
 });
+
 
 app.get("/VerNO/:IDNO", async (req, res) => {
     const { IDNO } = req.params;
