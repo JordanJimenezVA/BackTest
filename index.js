@@ -128,14 +128,14 @@ app.post('/Login', async (req, res) => {
                 const secretKey = process.env.JWT_SECRET_KEY || 'default-secret-key';
                 const token = jwt.sign({ rut }, secretKey, { expiresIn: '1d' });
 
-                // Establecer la cookie
                 res.cookie('token', token, {
-                    httpOnly: false,
-                    secure: true ,  // Solo HTTPS en producción
-                    maxAge: 24 * 60 * 60 * 1000, // 1 día
-                    sameSite: 'None'  // 'None' para cross-origin en producción
+                    httpOnly: true,
+                    secure: process.env.NODE_ENV === 'production',
+                    maxAge: 24 * 60 * 60 * 1000,
+                    sameSite: 'None',
                 });
-
+                
+                console.log('Token generado y enviado en la cookie:', token);
                 return res.json({ Status: "Success" });
             } else {
                 return res.json({ Message: "Credenciales incorrectas" });
