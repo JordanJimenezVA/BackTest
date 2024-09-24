@@ -40,7 +40,7 @@ export const db = createPool({
 
 
 app.use(cors({
-    origin: ["http://localhost:5173", "http://localhost:3000" ,"https://vivacious-enthusiasm-production.up.railway.app" ],
+    origin: ["http://localhost:5173", "http://localhost:3000", "http://localhost:4173" ,"https://vivacious-enthusiasm-production.up.railway.app" ],
     methods: ["POST", "GET", "DELETE", "PUT"],
     credentials: true,
 }));
@@ -129,13 +129,13 @@ app.post('/Login', async (req, res) => {
                 const token = jwt.sign({ rut }, secretKey, { expiresIn: '1d' });
 
                 res.cookie('token', token, {
+                    
                     httpOnly: true,
-                    secure: process.env.NODE_ENV === 'production',
-                    maxAge: 24 * 60 * 60 * 1000,
-                    sameSite: 'None',
+                    secure: process.env.NODE_ENV === 'production',  // Solo HTTPS en producción
+                    maxAge: 24 * 60 * 60 * 1000, // 1 día
+                    sameSite: process.env.NODE_ENV === 'None'  // 'None' para cross-origin en producción
                 });
-                
-                console.log('Token generado y enviado en la cookie:', token);
+
                 return res.json({ Status: "Success" });
             } else {
                 return res.json({ Message: "Credenciales incorrectas" });
