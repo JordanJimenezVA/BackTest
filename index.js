@@ -22,8 +22,6 @@ const DB_PASSWORD = process.env.DB_PASSWORD;
 const DB_DATABASE = process.env.DB_DATABASE;
 
 
-app.set('trust proxy', 1);
-
 const app = express();
 app.use(cookieParser());
 app.use(express.json());
@@ -130,11 +128,10 @@ app.post('/Login', async (req, res) => {
                 const token = jwt.sign({ rut }, secretKey, { expiresIn: '1d' });
 
                 res.cookie('token', token, {
-                    
                     httpOnly: true,
-                    secure: true,  // Solo HTTPS en producción
-                    maxAge: 24 * 60 * 60 * 1000, // 1 día
-                    sameSite: 'None'  // 'None' para cross-origin en producción
+                    secure: false,  // Desactívalo temporalmente para pruebas
+                    sameSite: 'None',
+                    maxAge: 24 * 60 * 60 * 1000
                 });
 
                 return res.json({ Status: "Success" });
