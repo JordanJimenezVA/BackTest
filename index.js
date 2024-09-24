@@ -131,9 +131,9 @@ app.post('/Login', async (req, res) => {
                 // Establecer la cookie
                 res.cookie('token', token, {
                     httpOnly: false,
-                    secure: process.env.NODE_ENV === 'production',  // Solo HTTPS en producción
+                    secure: true ,  // Solo HTTPS en producción
                     maxAge: 24 * 60 * 60 * 1000, // 1 día
-                    sameSite: process.env.NODE_ENV === 'production' ? 'None' : 'Lax',  // 'None' para cross-origin en producción
+                    sameSite: 'None'  // 'None' para cross-origin en producción
                 });
 
                 return res.json({ Status: "Success" });
