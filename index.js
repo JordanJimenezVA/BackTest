@@ -133,7 +133,7 @@ app.post('/Login', async (req, res) => {
                     httpOnly: true,
                     secure: true,  // Solo HTTPS en producción
                     maxAge: 24 * 60 * 60 * 1000, // 1 día
-                    sameSite: 'Lax'  // 'None' para cross-origin en producción
+                    sameSite: 'None'  // 'None' para cross-origin en producción
                 });
 
                 return res.json({ Status: "Success" });
