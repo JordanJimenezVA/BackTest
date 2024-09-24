@@ -40,7 +40,7 @@ export const db = createPool({
 
 
 app.use(cors({
-    origin: ["http://localhost:5173", "https://sistemasandes.vercel.app", "https://frontendtest-production-d15e.up.railway.app/", "http://localhost:3000" ,"https://vivacious-enthusiasm-production.up.railway.app" ],
+    origin: ["http://localhost:5173", "http://localhost:3000" ,"https://vivacious-enthusiasm-production.up.railway.app" ],
     methods: ["POST", "GET", "DELETE", "PUT"],
     credentials: true,
 }));
