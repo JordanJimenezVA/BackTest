@@ -22,6 +22,7 @@ const DB_PASSWORD = process.env.DB_PASSWORD;
 const DB_DATABASE = process.env.DB_DATABASE;
 
 
+app.set('trust proxy', 1);
 
 const app = express();
 app.use(cookieParser());
