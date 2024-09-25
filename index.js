@@ -129,7 +129,7 @@ app.post('/Login', async (req, res) => {
 
                 res.cookie('token', token, {
                     httpOnly: true,
-                    secure: true,  // Railway utiliza HTTPS, por lo tanto, secure debe estar en true
+                    secure: false,  // Railway utiliza HTTPS, por lo tanto, secure debe estar en true
                     domain: '.up.railway.app',  // El dominio base, compartido entre el frontend y el backend
                     sameSite: 'None',  // Necesario para habilitar cookies entre diferentes dominios/subdominios
                     maxAge: 24 * 60 * 60 * 1000  // 1 día
