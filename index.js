@@ -39,7 +39,7 @@ export const db = createPool({
 
 
 app.use(cors({
-    origin: ["https://vivacious-enthusiasm-production.up.railway.app" ],
+    origin: ["https://vivacious-enthusiasm-production.up.railway.app", "http://localhost:4173" , "http://localhost:5173" ],
     methods: ["POST", "GET", "DELETE", "PUT"],
     credentials: true,
 }));
@@ -128,7 +128,7 @@ app.post('/Login', async (req, res) => {
                 const token = jwt.sign({ rut }, secretKey, { expiresIn: '1d' });
 
                 res.cookie('token', token, {
-                    httpOnly: true,
+                    httpOnly: false,
                     secure: true, 
                     sameSite: 'None',  
                     maxAge: 24 * 60 * 60 * 1000  // 1 día
