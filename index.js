@@ -128,7 +128,7 @@ app.post('/Login', async (req, res) => {
                 const token = jwt.sign({ rut }, secretKey, { expiresIn: '1d' });
 
                 res.cookie('token', token, {
-                    httpOnly: true,
+                    httpOnly: false,
                     secure: true,  // Railway utiliza HTTPS, por lo tanto, secure debe estar en true
                     domain: '.up.railway.app',  // El dominio base, compartido entre el frontend y el backend
                     sameSite: 'None',  // Necesario para habilitar cookies entre diferentes dominios/subdominios
@@ -146,7 +146,6 @@ app.post('/Login', async (req, res) => {
         return res.status(500).json({ Message: "Server Error" });
     }
 });
-
 
 
 //GESTION PERSONAL NG
