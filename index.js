@@ -126,12 +126,12 @@ app.post('/Login', async (req, res) => {
                 const rut = user.RUTU;
                 const secretKey = process.env.JWT_SECRET_KEY;
                 const token = jwt.sign({ rut }, secretKey, { expiresIn: '1d' });
-                console.log("holahola")
+
                 res.cookie('token', token, {
                     httpOnly: false,
                     secure: true,  // Railway utiliza HTTPS, por lo tanto, secure debe estar en true
                     domain: '.up.railway.app',  // El dominio base, compartido entre el frontend y el backend
-                    sameSite: 'None',  // Necesario para habilitar cookies entre diferentes dominios/subdominios
+                    sameSite: 'Lax',  // Necesario para habilitar cookies entre diferentes dominios/subdominios
                     maxAge: 24 * 60 * 60 * 1000  // 1 día
                 });
                 return res.json({ Status: "Success" });
