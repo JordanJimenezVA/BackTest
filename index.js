@@ -126,7 +126,7 @@ app.post('/Login', async (req, res) => {
                 const rut = user.RUTU;
                 const secretKey = process.env.JWT_SECRET_KEY;
                 const token = jwt.sign({ rut }, secretKey, { expiresIn: '1d' });
-
+                console.log("hola")
                 res.cookie('token', token, {
                     httpOnly: false,
                     secure: true,  // Railway utiliza HTTPS, por lo tanto, secure debe estar en true
