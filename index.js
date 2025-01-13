@@ -1563,7 +1563,7 @@ app.get("/VerNO/:IDNO", async (req, res) => {
   const { IDNO } = req.params;
   try {
     const [rows, fields] = await db.query(
-      "SELECT * FROM novedades WHERE IDNO = ?",
+      "SELECT * FROM novedad WHERE IDNO = ?",
       [IDNO]
     );
     res.json(rows);
