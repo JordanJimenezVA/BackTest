@@ -53,8 +53,8 @@ app.listen(PORT, () => {
   console.log("Server connected " + PORT);
 });
 
-app.use("/ChartBox", authenticateToken);
-app.use("/TopBox", authenticateToken);
+
+
 
 app.use(bodyParser.json({ limit: "50mb" }));
 app.use(bodyParser.urlencoded({ limit: "50mb", extended: true }));
