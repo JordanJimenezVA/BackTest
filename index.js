@@ -142,7 +142,7 @@ app.post("/Login", async (req, res) => {
             : "Instalación no encontrada";
 
         res.cookie("token", token, {
-          httpOnly: false,
+          httpOnly: true,
           secure: false,
           sameSite: "Lax",
           maxAge: 24 * 60 * 60 * 1000, // 1 día
