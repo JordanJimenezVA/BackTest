@@ -110,7 +110,8 @@ app.get("/Logout", (req, res) => {
   res.clearCookie("token", { path: "/" }); // Clear the token cookie
   return res.json({ Status: "Success" });
 });
-// Login endpoint modificado
+
+
 app.post("/Login", async (req, res) => {
   const sql = "SELECT * FROM usuario WHERE RUTU = ?";
   try {
@@ -141,12 +142,12 @@ app.post("/Login", async (req, res) => {
             ? instalacion[0].Nombre
             : "Instalación no encontrada";
 
-        res.cookie("token", token, {
-          httpOnly: true,
-          secure: false,
-          sameSite: "Lax",
-          maxAge: 24 * 60 * 60 * 1000, // 1 día
-        });
+            res.cookie("token", token, {
+              httpOnly: true,       // La cookie no es accesible por JavaScript del lado del cliente.
+              secure: true,         // Requiere HTTPS.
+              sameSite: "None",     // Permite el envío de cookies entre dominios.
+              maxAge: 24 * 60 * 60 * 1000, // 1 día.
+            });
 
         return res.json({
           Status: "Success",
