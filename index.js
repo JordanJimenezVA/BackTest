@@ -20,7 +20,7 @@ const DB_PORT = process.env.DB_PORT;
 const DB_USER = process.env.DB_USER;
 const DB_PASSWORD = process.env.DB_PASSWORD;
 const DB_DATABASE = process.env.DB_DATABASE;
-
+const isProd = process.env.NODE_ENV;
 const app = express();
 app.use(cookieParser());
 app.use(express.json());
@@ -143,11 +143,12 @@ app.post("/Login", async (req, res) => {
             : "Instalación no encontrada";
 
             res.cookie("token", token, {
-              httpOnly: true,       // La cookie no es accesible por JavaScript del lado del cliente.
-              secure: true,         // Requiere HTTPS.
-              sameSite: "None",     // Permite el envío de cookies entre dominios.
-              maxAge: 24 * 60 * 60 * 1000, // 1 día.
-            });
+  httpOnly: true,       // La cookie no es accesible desde JavaScript del cliente.
+  secure: true,         // Requiere HTTPS.
+  sameSite: "None",     // Permite el envío de cookies entre dominios.
+  domain: isProd ? ".railway.app" : undefined, // Compartir cookies entre subdominios en producción.
+  maxAge: 24 * 60 * 60 * 1000, // 1 día.
+});
 
         return res.json({
           Status: "Success",
