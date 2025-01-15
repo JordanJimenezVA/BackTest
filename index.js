@@ -141,7 +141,7 @@ app.post("/Login", async (req, res) => {
           instalacion.length > 0
             ? instalacion[0].Nombre
             : "Instalación no encontrada";
-
+console.log("Cookies recibidas:", req.cookies);
             res.cookie("token", token, {
   httpOnly: true,       // La cookie no es accesible desde JavaScript del cliente.
   secure: true,         // Requiere HTTPS.
