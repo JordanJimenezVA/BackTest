@@ -21,7 +21,6 @@ const DB_USER = process.env.DB_USER;
 const DB_PASSWORD = process.env.DB_PASSWORD;
 const DB_DATABASE = process.env.DB_DATABASE;
 const isProd = process.env.NODE_ENV;
-
 const app = express();
 app.use(cookieParser());
 app.use(express.json());
@@ -53,9 +52,6 @@ app.use(
 app.listen(PORT, () => {
   console.log("Server connected " + PORT);
 });
-
-
-
 
 app.use(bodyParser.json({ limit: "50mb" }));
 app.use(bodyParser.urlencoded({ limit: "50mb", extended: true }));
@@ -112,7 +108,6 @@ app.get("/Logout", (req, res) => {
   return res.json({ Status: "Success" });
 });
 
-
 app.post("/Login", async (req, res) => {
   const sql = "SELECT * FROM usuario WHERE RUTU = ?";
   try {
@@ -142,14 +137,14 @@ app.post("/Login", async (req, res) => {
           instalacion.length > 0
             ? instalacion[0].Nombre
             : "Instalación no encontrada";
-
-            res.cookie("token", token, {
-              httpOnly: true,       // La cookie no es accesible desde JavaScript del cliente.
-              secure: true,         // Requiere HTTPS.
-              sameSite: "None",     // Permite el envío de cookies entre dominios.
-              domain: NODE_ENV ? ".railway.app" : undefined, // Compartir cookies entre subdominios en producción.
-              maxAge: 24 * 60 * 60 * 1000, // 1 día.
-            });
+        console.log("Cookies recibidas:", req.cookies);
+        res.cookie("token", token, {
+          httpOnly: true, // La cookie no es accesible desde JavaScript del cliente.
+          secure: true, // Requiere HTTPS.
+          sameSite: "None", // Permite el envío de cookies entre dominios.
+          domain: isProd ? ".railway.app" : undefined, // Compartir cookies entre subdominios en producción.
+          maxAge: 24 * 60 * 60 * 1000, // 1 día.
+        });
 
         return res.json({
           Status: "Success",
@@ -710,7 +705,6 @@ app.post("/FormularioPersonalExterno", async (req, res) => {
       "SELECT COUNT(*) AS count FROM persona WHERE RUTP = ?",
       [RUTP]
     );
-
 
     if (personaExistente[0][0].count === 0) {
       // Si no existe, insertar en `persona`
@@ -1373,8 +1367,6 @@ app.post("/FormularioSalida/:IDR", async (req, res) => {
     );
 
     if (matchingRecords.length > 0) {
-    
-
       // Actualizar el ciclo de los registros encontrados
       const [updateResult] = await db.query(
         `UPDATE registro 
@@ -1384,10 +1376,10 @@ app.post("/FormularioSalida/:IDR", async (req, res) => {
          AND Ciclo = 0`,
         [RutP, Patente]
       );
-
-    
     } else {
-      console.log("No se encontraron registros relacionados para actualizar el ciclo.");
+      console.log(
+        "No se encontraron registros relacionados para actualizar el ciclo."
+      );
     }
 
     res.send("Salida registrada correctamente.");
@@ -1396,7 +1388,6 @@ app.post("/FormularioSalida/:IDR", async (req, res) => {
     res.status(500).send("Error al registrar la salida");
   }
 });
-
 
 app.post("/FormularioSalidaSinCamion/:IDR", async (req, res) => {
   const IDR = req.params.IDR;
@@ -1464,10 +1455,7 @@ app.post("/FormularioSalidaSinCamion/:IDR", async (req, res) => {
     );
 
     // 3. Actualizar el ciclo del registro de entrada original
-    await db.query(
-      "UPDATE registro SET Ciclo = 1 WHERE IDR = ?",
-      [IDR]
-    );
+    await db.query("UPDATE registro SET Ciclo = 1 WHERE IDR = ?", [IDR]);
 
     res.send(
       "Salida registrada correctamente: datos del camión y persona actualizados, ciclo del registro de entrada modificado."
@@ -1477,8 +1465,6 @@ app.post("/FormularioSalidaSinCamion/:IDR", async (req, res) => {
     res.status(500).send("Error al marcar salida");
   }
 });
-
-
 
 // GESTION HOME
 
@@ -1509,9 +1495,10 @@ app.get("/ChartBox", authenticateToken, async (req, res) => {
   }
 
   try {
-    const [data] = await db.query("SELECT * FROM registro WHERE Instalacion = ? AND Ciclo = FALSE AND Estado = 'Ingreso'", [
-      idinst,
-    ]);
+    const [data] = await db.query(
+      "SELECT * FROM registro WHERE Instalacion = ? AND Ciclo = FALSE AND Estado = 'Ingreso'",
+      [idinst]
+    );
     res.json(data);
   } catch (error) {
     console.error("Error al ejecutar la consulta:", error);
@@ -1529,9 +1516,10 @@ app.get("/TablaNovedad", async (req, res) => {
   }
 
   try {
-    const [rows] = await db.query("SELECT * FROM novedad WHERE Instalacion = ?", [
-      IDINST,
-    ]);
+    const [rows] = await db.query(
+      "SELECT * FROM novedad WHERE Instalacion = ?",
+      [IDINST]
+    );
     res.json(rows);
   } catch (error) {
     console.error("Error al ejecutar la consulta:", error);
@@ -1552,7 +1540,7 @@ app.post("/AgregarNO", upload.array("FOTOSNO", 10), async (req, res) => {
     // Guarda los datos en la base de datos
     await db.query(
       "INSERT INTO novedad (Descripcion, Foto, Guardia, Fecha, Instalacion ) VALUES (?, ?, ?, ?, ?)",
-      [NotaNO, FOTOSNO.join(", "), GuardiaNO, HoraNO,  IDINST]
+      [NotaNO, FOTOSNO.join(", "), GuardiaNO, HoraNO, IDINST]
     );
 
     res.send("Novedad registrada con éxito");
@@ -1749,8 +1737,6 @@ app.post("/FormularioSalidaRE/:IDR", async (req, res) => {
   }
 });
 
-
-
 //GESTION NOMBRE USUARIO
 
 app.get("/NombreUser", async (req, res) => {
@@ -1830,7 +1816,6 @@ app.get("/Logs", async (req, res) => {
 
     const [rows] = await db.query(query, [IDINST]);
     res.json(rows);
-
   } catch (error) {
     console.error("Error al ejecutar la consulta:", error);
     res.status(500).json({ error: "Error al ejecutar la consulta" });
@@ -1958,7 +1943,8 @@ app.get("/PatenteSuggestion/suggestion/:PATENTE", async (req, res) => {
 app.get("/RutSalida/suggestions", async (req, res) => {
   try {
     const { query } = req.query;
-    const q = "SELECT * FROM registro WHERE RutP LIKE ? AND Estado = 'Ingreso' AND Ciclo = 0";
+    const q =
+      "SELECT * FROM registro WHERE RutP LIKE ? AND Estado = 'Ingreso' AND Ciclo = 0";
     const results = await db.query(q, [`%${query}%`]);
     const suggestions = results.map((result) => result.RUTP);
     res.json({ results });
@@ -1983,7 +1969,9 @@ app.get("/RutSalida/suggestion/:RutP", async (req, res) => {
     const [results] = await db.query(query, [RutP]);
     console.log(results);
     if (results.length === 0) {
-      return res.status(404).json({ error: "Rut no encontrado en registro con estado 'Ingreso'" });
+      return res
+        .status(404)
+        .json({ error: "Rut no encontrado en registro con estado 'Ingreso'" });
     }
 
     // Asumiendo que solo hay un registro relevante
