@@ -139,11 +139,10 @@ app.post("/Login", async (req, res) => {
             : "Instalación no encontrada";
         console.log("Cookies recibidas:", req.cookies);
         res.cookie("token", token, {
-          httpOnly: true, // La cookie no es accesible desde JavaScript del cliente.
-          secure: true, // Requiere HTTPS.
-          sameSite: "None", // Permite el envío de cookies entre dominios.
-          domain: isProd ? ".railway.app" : undefined, // Compartir cookies entre subdominios en producción.
-          maxAge: 24 * 60 * 60 * 1000, // 1 día.
+          httpOnly: false,
+          secure: true, // Desactívalo en local
+          sameSite: "Lax", // Ajuste para local
+          maxAge: 24 * 60 * 60 * 1000, // 1 día
         });
 
         return res.json({
@@ -1468,7 +1467,7 @@ app.post("/FormularioSalidaSinCamion/:IDR", async (req, res) => {
 
 // GESTION HOME
 
-app.get("/TopBox", authenticateToken, async (req, res) => {
+app.get("/TopBox", async (req, res) => {
   const idInst = req.query.idInst;
 
   if (!idInst) {
@@ -1487,7 +1486,7 @@ app.get("/TopBox", authenticateToken, async (req, res) => {
   }
 });
 
-app.get("/ChartBox", authenticateToken, async (req, res) => {
+app.get("/ChartBox", async (req, res) => {
   const { idinst } = req.query;
 
   if (!idinst) {
@@ -1647,31 +1646,6 @@ app.get("/EditarUsuarios/:RUTU", async (req, res) => {
 });
 
 //GESTION TABLA INGRESO RE
-
-app.get("/TablaIngresoRE", async (req, res) => {
-  try {
-    const { IDINST } = req.query; // Obtenemos IDINST de los parámetros de la solicitud
-
-    if (!IDINST) {
-      return res.status(400).json({ error: "Se requiere el IDINST" });
-    }
-
-    const query = `
-            SELECT registros.*, progresorevision.ESTADO AS estadoRevision 
-            FROM registros 
-            LEFT JOIN progresorevision ON registros.IDR = progresorevision.IDR 
-            WHERE registros.ESTADO = 'INGRESO'
-            AND registros.ROL NOT IN ('SEMIREMOLQUE', 'CAMION', 'TRACTOCAMION', 'CHASIS CABINADO', 'REMOLQUE', 'OtrosCA')
-            AND registros.IDINST = ?
-        `;
-
-    const [rows, fields] = await db.query(query, [IDINST]);
-    res.json(rows);
-  } catch (error) {
-    console.error("Error al ejecutar la consulta:", error);
-    res.status(500).json({ error: "Error al ejecutar la consulta" });
-  }
-});
 
 app.get("/FormularioSalidaRE/:IDR", async (req, res) => {
   const { IDR } = req.params;
@@ -1967,7 +1941,6 @@ app.get("/RutSalida/suggestion/:RutP", async (req, res) => {
     `;
 
     const [results] = await db.query(query, [RutP]);
-    console.log(results);
     if (results.length === 0) {
       return res
         .status(404)
