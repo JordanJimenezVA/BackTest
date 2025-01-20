@@ -139,7 +139,7 @@ app.post("/Login", async (req, res) => {
             : "Instalación no encontrada";
         console.log("Cookies recibidas:", req.cookies);
         res.cookie("token", token, {
-          httpOnly: true,
+          httpOnly: false,
           secure: false, // Solo para depuración local
           sameSite: "Lax",
           domain: "api-sis-andes.up.railway.app",
