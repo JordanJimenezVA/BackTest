@@ -141,7 +141,7 @@ app.post("/Login", async (req, res) => {
         res.cookie("token", token, {
           httpOnly: false, // Ajusta según necesidad
           secure: true, // Esto es obligatorio si usas HTTPS en Railway
-          sameSite: "Lax", // Permite cookies en subdominios
+          sameSite: "None", // Permite cookies en subdominios
           maxAge: 24 * 60 * 60 * 1000, // 1 día
       });
       
