@@ -139,10 +139,11 @@ app.post("/Login", async (req, res) => {
             : "Instalación no encontrada";
         console.log("Cookies recibidas:", req.cookies);
         res.cookie('token', token, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production', // true en producción, false en desarrollo
-          maxAge: 24 * 60 * 60 * 1000,
-          sameSite: process.env.NODE_ENV === 'production' ? 'None' : 'Lax', // None en producción, Lax en desarrollo
+          httpOnly: false,
+          secure: true,  // Railway utiliza HTTPS, por lo tanto, secure debe estar en true
+          domain: '.up.railway.app',  // El dominio base, compartido entre el frontend y el backend
+          sameSite: 'Lax',  // Necesario para habilitar cookies entre diferentes dominios/subdominios
+          maxAge: 24 * 60 * 60 * 1000  // 1 día
       });
       
         return res.json({
