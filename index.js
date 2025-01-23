@@ -138,11 +138,11 @@ app.post("/Login", async (req, res) => {
             ? instalacion[0].Nombre
             : "Instalación no encontrada";
         console.log("Cookies recibidas:", req.cookies);
-        res.cookie("token", token, {
-          httpOnly: false, // Ajusta según necesidad
-          secure: true, // Esto es obligatorio si usas HTTPS en Railway
-          sameSite: "lax", // Permite cookies en subdominios
-          maxAge: 24 * 60 * 60 * 1000, // 1 día
+        res.cookie('token', token, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production', // true en producción, false en desarrollo
+          maxAge: 24 * 60 * 60 * 1000,
+          sameSite: process.env.NODE_ENV === 'production' ? 'None' : 'Lax', // None en producción, Lax en desarrollo
       });
       
         return res.json({
