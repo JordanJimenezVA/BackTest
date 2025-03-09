@@ -20,6 +20,14 @@ const DB_PORT = process.env.DB_PORT;
 const DB_USER = process.env.DB_USER;
 const DB_PASSWORD = process.env.DB_PASSWORD;
 const DB_DATABASE = process.env.DB_DATABASE;
+
+const DB_HOST_OLD = process.env.DB_HOST_OLD;
+const DB_PORT_OLD = process.env.DB_PORT_OLD;
+const DB_USER_OLD = process.env.DB_USER_OLD;
+const DB_PASSWORD_OLD = process.env.DB_PASSWORD_OLD;
+const DB_DATABASE_OLD = process.env.DB_DATABASE_OLD;
+
+
 const isProd = process.env.NODE_ENV;
 const app = express();
 app.use(cookieParser());
@@ -33,6 +41,17 @@ export const db = createPool({
   database: DB_DATABASE,
   waitForConnections: true,
   connectionLimit: 6, // Número máximo de conexiones simultáneas
+  queueLimit: 0,
+});
+
+export const dbAntigua = createPool({
+  host: DB_HOST_OLD,
+  port: DB_PORT_OLD,
+  user: DB_USER_OLD,
+  password: DB_PASSWORD_OLD,
+  database: DB_DATABASE_OLD,
+  waitForConnections: true,
+  connectionLimit: 5,
   queueLimit: 0,
 });
 
@@ -137,15 +156,15 @@ app.post("/Login", async (req, res) => {
           instalacion.length > 0
             ? instalacion[0].Nombre
             : "Instalación no encontrada";
-        console.log("Cookies recibidas:", req.cookies);
-        res.cookie('token', token, {
+       
+        res.cookie("token", token, {
           httpOnly: false,
-          secure: true,  // Railway utiliza HTTPS, por lo tanto, secure debe estar en true
-          domain: '.up.railway.app',  // El dominio base, compartido entre el frontend y el backend
-          sameSite: 'Lax',  // Necesario para habilitar cookies entre diferentes dominios/subdominios
-          maxAge: 24 * 60 * 60 * 1000  // 1 día
-      });
-      
+          secure: true,
+          domain: ".up.railway.app",
+          sameSite: "Lax",
+          maxAge: 24 * 60 * 60 * 1000, // 1 día
+        });
+
         return res.json({
           Status: "Success",
           userType,
@@ -1808,6 +1827,39 @@ app.get("/VerLog/:IDR", async (req, res) => {
   } catch (error) {
     console.error("Error al ejecutar la consulta:", error);
     res.status(500).json({ error: "Error al ejecutar la consulta" });
+  }
+});
+
+app.get("/LogsOld", async (req, res) => {
+  try {
+      const { IDINST } = req.query;
+
+      if (!IDINST) {
+          return res.status(400).json({ error: 'Se requiere el IDINST' });
+      }
+
+      const query = `
+          SELECT * FROM logs 
+          WHERE IDINST = ?
+      `;
+
+      const [rows] = await dbAntigua.query(query, [IDINST]);
+      res.json(rows);
+  } catch (error) {
+      console.error('Error al ejecutar la consulta:', error);
+      res.status(500).json({ error: 'Error al ejecutar la consulta' });
+  }
+});
+
+
+app.get("/VerLogOld/:IDL", async (req, res) => {
+  const { IDL } = req.params;
+  try {
+      const [rows, fields] = await dbAntigua.query("SELECT * FROM logs WHERE IDL = ?", [IDL]);
+      res.json(rows);
+  } catch (error) {
+      console.error('Error al ejecutar la consulta:', error);
+      res.status(500).json({ error: 'Error al ejecutar la consulta' });
   }
 });
 
