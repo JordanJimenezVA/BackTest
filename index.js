@@ -14,6 +14,8 @@ import { fileURLToPath } from "url";
 import { dirname } from "path";
 import bcrypt from "bcrypt";
 import authenticateToken from "./authenticateToken.mjs";
+import { v2 as cloudinary } from "cloudinary";
+import streamifier from "streamifier";
 
 const DB_HOST = process.env.DB_HOST;
 const DB_PORT = process.env.DB_PORT;
@@ -27,6 +29,9 @@ const DB_USER_OLD = process.env.DB_USER_OLD;
 const DB_PASSWORD_OLD = process.env.DB_PASSWORD_OLD;
 const DB_DATABASE_OLD = process.env.DB_DATABASE_OLD;
 
+const CLOUDINARY_CLOUD_NAME = process.env.CLOUDINARY_CLOUD_NAME;
+const CLOUDINARY_API_SECRET = process.env.CLOUDINARY_API_SECRET;
+const CLOUDINARY_API_KEY = process.env.CLOUDINARY_API_KEY;
 
 const isProd = process.env.NODE_ENV;
 const app = express();
@@ -40,7 +45,7 @@ export const db = createPool({
   password: DB_PASSWORD,
   database: DB_DATABASE,
   waitForConnections: true,
-  connectionLimit: 6, // Número máximo de conexiones simultáneas
+  connectionLimit: 6,
   queueLimit: 0,
 });
 
@@ -72,30 +77,15 @@ app.listen(PORT, () => {
   console.log("Server connected " + PORT);
 });
 
-app.use(bodyParser.json({ limit: "50mb" }));
-app.use(bodyParser.urlencoded({ limit: "50mb", extended: true }));
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-const dir = path.join(__dirname, "imagenes");
-if (!fs.existsSync(dir)) {
-  fs.mkdirSync(dir); // Crea la carpeta si no existe
-}
-
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, dir); // Establecer la carpeta donde se guardarán las imágenes
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(null, uniqueSuffix + "-" + file.originalname); // Nombre único para evitar colisiones
-  },
+cloudinary.config({
+  cloud_name: CLOUDINARY_CLOUD_NAME,
+  api_key: CLOUDINARY_API_KEY,
+  api_secret: CLOUDINARY_API_SECRET,
 });
 
-const upload = multer({ storage: storage });
+const storage = multer.memoryStorage();
+const upload = multer({ storage });
 
-app.use("/imagenes", express.static(path.join(__dirname, "imagenes")));
 
 // GESTION LOGIN
 
@@ -156,11 +146,11 @@ app.post("/Login", async (req, res) => {
           instalacion.length > 0
             ? instalacion[0].Nombre
             : "Instalación no encontrada";
-       
+
         res.cookie("token", token, {
           httpOnly: false,
-          secure: true,
-          domain: ".up.railway.app",
+          secure: false,
+          // domain: ".up.railway.app",
           sameSite: "Lax",
           maxAge: 24 * 60 * 60 * 1000, // 1 día
         });
@@ -171,7 +161,7 @@ app.post("/Login", async (req, res) => {
           nombreUsuario,
           rut,
           instalacionU,
-          instalacionUsuario: nombreInstalacion, // Aquí se retorna el nombre de la instalación
+          instalacionUsuario: nombreInstalacion,
         });
       } else {
         console.log("Error: Contraseña incorrecta");
@@ -544,7 +534,7 @@ app.get("/EditarTransporte/:PATENTE", async (req, res) => {
 
 app.put("/EditarTransporte/:PATENTE", async (req, res) => {
   const PATENTE = req.params.PATENTE;
-  const { PatenteR, Tipo, Modelo, Marca, Color, Empresa } = req.body;
+  const { Tipo, Modelo, Marca, Color, EmpresaP } = req.body;
 
   try {
     const existenciaPatente = await db.query(
@@ -559,8 +549,8 @@ app.put("/EditarTransporte/:PATENTE", async (req, res) => {
 
     // El IDPI existe, actualizar los datos en la tabla camiones
     await db.query(
-      "UPDATE transporte SET PatenteR = ?, SET Tipo = ?, Modelo = ?, Marca = ?, Color = ?, Empresa = ? WHERE PATENTE = ?",
-      [PatenteR, Tipo, Modelo, Marca, Color, Empresa, PATENTE]
+      "UPDATE transporte SET Tipo = ?, Modelo = ?, Marca = ?, Color = ?, Empresa = ? WHERE PATENTE = ?",
+      [Tipo, Modelo, Marca, Color, EmpresaP, PATENTE]
     );
 
     res.send("Actualización realizada con éxito");
@@ -582,104 +572,36 @@ app.delete("/Transporte/:PATENTE", async (req, res) => {
   }
 });
 
-app.post("/AgregarTransporte", async (req, res) => {
-  const { PATENTE, PatenteR, Tipo, Modelo, Marca, Color, Empresa } = req.body;
-  const Estado = "VIGENTE";
 
+app.post("/AgregarTransporte", async (req, res) => {
+  const { PATENTE, Tipo, Modelo, Marca, Color, EmpresaP } = req.body;
+  const Estado = "VIGENTE";
   try {
-    // Verificar si la Patente ya existe en la base de datos
     const [[{ count }]] = await db.query(
       "SELECT COUNT(*) AS count FROM transporte WHERE PATENTE = ?",
       [PATENTE]
     );
 
     if (count > 0) {
-      // La Patente ya existe
-      return res.send("La Patente ya existe en la base de datos");
+      return res.status(409).send({ message: "La Patente ya existe en la base de datos" });
     }
 
-    // Si la Patente no existe
     await db.query(
-      "INSERT INTO transporte (PATENTE, PatenteR, Tipo, Modelo, Marca, Color, Empresa, Estado) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-      [PATENTE, PatenteR, Tipo, Modelo, Marca, Color, Empresa, Estado]
+      `INSERT INTO transporte (PATENTE, Tipo, Modelo, Marca, Color, Empresa, Estado)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [PATENTE, Tipo, Modelo, Marca, Color, EmpresaP, Estado]
     );
 
     res.send("Ingreso realizado con éxito");
   } catch (error) {
     console.error("Error al registrar ingreso:", error);
-    res.status(500).send("Error al registrar ingreso");
+    res.status(500).send({ message: "Error al registrar ingreso" });
   }
 });
 
-//GESTION DE PERSONAL EXTERNO
+//FORMULARIO INGRESO PERSONA
 
-app.get("/FormularioPersonalExterno/suggestions", async (req, res) => {
-  try {
-    const { query } = req.query;
-    const q =
-      "SELECT * FROM personalexterno WHERE RUTPE LIKE ? AND ESTADOPE = 'VIGENTE'";
-    const results = await db.query(q, [`%${query}%`]);
-    const suggestions = results.map((result) => result.RUTPE);
-    res.json({ results });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Error al obtener sugerencias" });
-  }
-});
-
-app.get("/FormularioPersonalExterno/suggestion/:RUTPE", async (req, res) => {
-  try {
-    const { RUTPE } = req.params;
-    const query = `
-            SELECT 
-                pe.NOMBREPE, pe.APELLIDOPE, pe.VEHICULOPE, pe.COLORPE, 
-                pe.PATENTEPE, pe.ROLPE, pe.EMPRESAPE, pe.MODELOPE, png.ESTADONG
-            FROM 
-                personalexterno pe
-            LEFT JOIN 
-                personasng png ON pe.RUTPE = png.RUTNG
-            WHERE 
-                pe.RUTPE = ?
-        `;
-
-    const [result] = await db.query(query, [RUTPE]);
-
-    if (result.length === 0) {
-      return res.status(404).json({ error: "Rut no encontrado" });
-    }
-
-    const {
-      NOMBREPE,
-      APELLIDOPE,
-      VEHICULOPE,
-      COLORPE,
-      PATENTEPE,
-      ROLPE,
-      EMPRESAPE,
-      MODELOPE,
-      ESTADONG,
-    } = result[0];
-
-    res.json({
-      NOMBREPE,
-      APELLIDOPE,
-      VEHICULOPE,
-      COLORPE,
-      PATENTEPE,
-      ROLPE,
-      EMPRESAPE,
-      MODELOPE,
-      ESTADONG,
-    });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Error al obtener detalles del Rut" });
-  }
-});
-
-//GESTION PERSONAL INTERNO
-
-app.post("/FormularioPersonalExterno", async (req, res) => {
+app.post("/FormularioPersona", async (req, res) => {
   const {
     RUTP,
     NombreP,
@@ -745,12 +667,30 @@ app.post("/FormularioPersonalExterno", async (req, res) => {
       if (patenteExistente[0][0].count === 0) {
         // Si no existe, insertar en `transporte`
         await db.query(
-          "INSERT INTO transporte (PATENTE, PatenteR, Tipo, Modelo, Marca, Color, Empresa, Estado) VALUES (?, ?, ?, ?, ?, ?, ?)",
-          [PATENTE, PatenteR, Tipo, Modelo, Marca, Color, EmpresaP, EstadoP]
+          "INSERT INTO transporte (PATENTE, Tipo, Modelo, Marca, Color, Empresa, Estado) VALUES ( ?, ?, ?, ?, ?, ?)",
+          [PATENTE, Tipo, Modelo, Marca, Color, EmpresaP, EstadoP]
         );
         console.log("Nueva patente insertada en la tabla transporte.");
       } else {
         console.log("La patente ya existe en la tabla transporte.");
+      }
+    }
+
+    if (EmpresaP) {
+      const empresaPExistente = await db.query(
+        "SELECT COUNT(*) AS count FROM empresa WHERE Nombre = ?",
+        [EmpresaP]
+      );
+
+      if (empresaPExistente[0][0].count === 0) {
+        // Si no existe, insertar en `empresa`
+        await db.query("INSERT INTO empresa (Nombre, Estado) VALUES (?, ?)", [
+          EmpresaP,
+          EstadoP,
+        ]);
+        console.log("Nueva Empresa insertada en la tabla empresa.");
+      } else {
+        console.log("La Empresa ya existe en la tabla empresa.");
       }
     }
 
@@ -796,244 +736,6 @@ app.get("/Personal%20Interno", async (req, res) => {
   } catch (error) {
     console.error("Error al ejecutar la consulta:", error);
     res.status(500).json({ error: "Error al ejecutar la consulta" });
-  }
-});
-
-app.get("/FormularioPersonalInterno/suggestions", async (req, res) => {
-  try {
-    const { query } = req.query;
-    const q =
-      "SELECT * FROM personalinterno WHERE RUTPI LIKE ? AND ESTADOPI = 'VIGENTE'";
-    const results = await db.query(q, [`%${query}%`]);
-    const suggestions = results.map((result) => result.RUTPI);
-    res.json({ results });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Error al obtener sugerencias" });
-  }
-});
-
-app.get("/FormularioPersonalInterno/suggestion/:RUTPI", async (req, res) => {
-  try {
-    const { RUTPI } = req.params;
-    const query = `
-            SELECT 
-                pi.NOMBREPI, pi.APELLIDOPI, pi.VEHICULOPI, pi.COLORPI, 
-                pi.PATENTEPI, pi.ROLPI, pi.MODELOPI, png.ESTADONG
-            FROM 
-                personalinterno pi
-            LEFT JOIN 
-                personasng png ON pi.RUTPI = png.RUTNG
-            WHERE 
-                pi.RUTPI = ?
-        `;
-
-    const [result] = await db.query(query, [RUTPI]);
-
-    if (result.length === 0) {
-      return res.status(404).json({ error: "Rut no encontrado" });
-    }
-
-    const {
-      NOMBREPI,
-      APELLIDOPI,
-      VEHICULOPI,
-      COLORPI,
-      PATENTEPI,
-      ROLPI,
-      MODELOPI,
-      ESTADONG,
-    } = result[0];
-
-    res.json({
-      NOMBREPI,
-      APELLIDOPI,
-      VEHICULOPI,
-      COLORPI,
-      PATENTEPI,
-      ROLPI,
-      MODELOPI,
-      ESTADONG,
-    });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Error al obtener detalles del Rut" });
-  }
-});
-
-app.post("/FormularioPersonalInterno", async (req, res) => {
-  const rutPI = req.body.RUTPI;
-  const nombrePI = req.body.NOMBREPI;
-  const apellidoPI = req.body.APELLIDOPI;
-  const vehiculoPI = req.body.VEHICULOPI;
-  const modeloPI = req.body.MODELOPI;
-  const colorPI = req.body.COLORPI;
-  const patentePI = req.body.PATENTEPI;
-  const rolPI = req.body.ROLPI;
-  const observacionesPI = req.body.OBSERVACIONESPI;
-  const fechaActualChile = req.body.fechaActualChile;
-  const NombreUsuarioI = req.body.NombreUsuarioI;
-  const estado = "INGRESO";
-  const estadoPI = "VIGENTE";
-  const chequeo = "NO";
-  const IDINST = req.body.idinst;
-  const ignoreWarning = req.body;
-  try {
-    if (!ignoreWarning) {
-      // Verificar si el RUT ya existe en la misma instalación
-      const result = await db.query(
-        `SELECT i.NOMBREINST
-                FROM registros r
-                JOIN instalaciones i ON r.IDINST = i.IDINST
-                WHERE r.RUT = ? AND r.IDINST = ?
-                ORDER BY r.FECHAINGRESO DESC
-                LIMIT 1`,
-        [rutPI, IDINST]
-      );
-
-      if (result[0].length > 0) {
-        const nombreInstalacion = result[0][0].NOMBREINST;
-        return res.status(400).json({
-          error: `Esta persona ya está registrada en la instalación: ${nombreInstalacion}.`,
-        });
-      }
-
-      // Verificar si el RUT está en otras instalaciones
-      const resultOtherInst = await db.query(
-        `SELECT i.NOMBREINST
-                FROM registros r
-                JOIN instalaciones i ON r.IDINST = i.IDINST
-                WHERE r.RUT = ? AND r.IDINST <> ?
-                ORDER BY r.FECHAINGRESO DESC
-                LIMIT 1`,
-        [rutPI, IDINST]
-      );
-
-      if (resultOtherInst[0].length > 0) {
-        const nombreOtraInstalacion = resultOtherInst[0][0].NOMBREINST;
-        return res.status(200).json({
-          warning: `Esta persona está registrada en la instalación: ${nombreOtraInstalacion}. ¿Desea continuar con el registro?`,
-        });
-      }
-    }
-
-    const rutExistenteRegistros = await db.query(
-      "SELECT COUNT(*) AS count FROM registros WHERE RUT = ?",
-      [rutPI]
-    );
-    const countRegistros = rutExistenteRegistros[0][0].count;
-    if (countRegistros > 0) {
-      return res
-        .status(400)
-        .json({ error: "Esta persona se encuentra en las instalaciones" });
-    }
-
-    const rutExistente = await db.query(
-      "SELECT COUNT(*) AS count FROM personalinterno WHERE RUTPI = ?",
-      [rutPI]
-    );
-    const count = rutExistente[0][0].count;
-    if (count > 0) {
-      await db.query(
-        "INSERT INTO registros (PERSONAL, APELLIDO, RUT, PATENTE, ROL, OBSERVACIONES, FECHAINGRESO, ESTADO, CHEQUEADO, GUARDIA, VEHICULO, MODELO, COLOR, IDINST) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        [
-          nombrePI,
-          apellidoPI,
-          rutPI,
-          patentePI,
-          rolPI,
-          observacionesPI,
-          fechaActualChile,
-          estado,
-          chequeo,
-          NombreUsuarioI,
-          vehiculoPI,
-          modeloPI,
-          colorPI,
-          IDINST,
-        ]
-      );
-
-      await db.query(
-        "INSERT INTO logs (PERSONAL, APELLIDO, RUT, PATENTE, ROL, OBSERVACIONES, FECHAINGRESO, ESTADO, GUARDIA, VEHICULO, MODELO, COLOR, IDINST) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        [
-          nombrePI,
-          apellidoPI,
-          rutPI,
-          patentePI,
-          rolPI,
-          observacionesPI,
-          fechaActualChile,
-          estado,
-          NombreUsuarioI,
-          vehiculoPI,
-          modeloPI,
-          colorPI,
-          IDINST,
-        ]
-      );
-
-      res.send("Entrada/salida registrada correctamente");
-      return;
-    }
-
-    await db.query(
-      "INSERT INTO personalinterno (RUTPI, nombrePI, apellidoPI, vehiculoPI, colorPI, patentePI, rolPI, estadoPI, modeloPI) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      [
-        rutPI,
-        nombrePI,
-        apellidoPI,
-        vehiculoPI,
-        colorPI,
-        patentePI,
-        rolPI,
-        estadoPI,
-        modeloPI,
-      ]
-    );
-    await db.query(
-      "INSERT INTO registros (PERSONAL, APELLIDO, RUT, PATENTE, ROL, OBSERVACIONES, FECHAINGRESO, ESTADO, CHEQUEADO, GUARDIA, VEHICULO, MODELO, COLOR, IDINST) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      [
-        nombrePI,
-        apellidoPI,
-        rutPI,
-        patentePI,
-        rolPI,
-        observacionesPI,
-        fechaActualChile,
-        estado,
-        chequeo,
-        NombreUsuarioI,
-        vehiculoPI,
-        modeloPI,
-        colorPI,
-        IDINST,
-      ]
-    );
-
-    await db.query(
-      "INSERT INTO logs (PERSONAL, APELLIDO, RUT, PATENTE, ROL, OBSERVACIONES, FECHAINGRESO, ESTADO, GUARDIA, VEHICULO, MODELO, COLOR, IDINST) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      [
-        nombrePI,
-        apellidoPI,
-        rutPI,
-        patentePI,
-        rolPI,
-        observacionesPI,
-        fechaActualChile,
-        estado,
-        NombreUsuarioI,
-        vehiculoPI,
-        modeloPI,
-        colorPI,
-        IDINST,
-      ]
-    );
-
-    res.send("Entrada/salida registrada correctamente");
-  } catch (error) {
-    console.error("Error al registrar ingreso:", error);
-    res.status(500).send("Error al registrar ingreso");
   }
 });
 
@@ -1088,195 +790,6 @@ app.get("/FormularioCamiones/suggestion/:PATENTECA", async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Error al obtener detalles del Rut" });
-  }
-});
-
-app.post("/FormularioCamiones", async (req, res) => {
-  const choferCA = req.body.ChoferCA;
-  const apellidochoferCA = req.body.ApellidoChoferCA;
-  const rutCA = req.body.RutCA;
-  const patenteCA = req.body.PatenteCA;
-  const patenteRACA = req.body.PatenteRACA;
-  const marcaCA = req.body.MarcaCA;
-  const tipoCA = req.body.TipoCA;
-  const modeloCA = req.body.ModeloCA;
-  const colorCA = req.body.ColorCA;
-  const selloCA = req.body.SelloCA;
-  const empresaCA = req.body.EmpresaCA;
-  const observacionesCA = req.body.ObservacionesCA;
-  const guiaDespachoCA = req.body.GuiaDespachoCA;
-  const fechaActualChile = req.body.fechaActualChile;
-  const estadoCA = "VIGENTE";
-  const estado = "INGRESO";
-  const chequeo = "NO";
-  const rolCA = req.body.TipoCA;
-  const NombreUsuarioCA = req.body.NombreUsuarioCA;
-  const IDINST = req.body.idinst;
-  const ignoreWarning = req.body;
-
-  try {
-    if (!ignoreWarning) {
-      // Verificar si el RUT ya existe en la misma instalación
-      const result = await db.query(
-        `SELECT i.NOMBREINST
-                FROM registros r
-                JOIN instalaciones i ON r.IDINST = i.IDINST
-                WHERE r.RUT = ? AND r.IDINST = ?
-                ORDER BY r.FECHAINGRESO DESC
-                LIMIT 1`,
-        [rutCA, IDINST]
-      );
-
-      if (result[0].length > 0) {
-        const nombreInstalacion = result[0][0].NOMBREINST;
-        return res.status(400).json({
-          error: `Esta persona ya está registrada en la instalación: ${nombreInstalacion}.`,
-        });
-      }
-
-      // Verificar si el RUT está en otras instalaciones
-      const resultOtherInst = await db.query(
-        `SELECT i.NOMBREINST
-                FROM registros r
-                JOIN instalaciones i ON r.IDINST = i.IDINST
-                WHERE r.RUT = ? AND r.IDINST <> ?
-                ORDER BY r.FECHAINGRESO DESC
-                LIMIT 1`,
-        [rutCA, IDINST]
-      );
-
-      if (resultOtherInst[0].length > 0) {
-        const nombreOtraInstalacion = resultOtherInst[0][0].NOMBREINST;
-        return res.status(200).json({
-          warning: `Esta persona está registrada en la instalación: ${nombreOtraInstalacion}. ¿Desea continuar con el registro?`,
-        });
-      }
-    }
-
-    // Verificar si el RUT ya existe en la tabla personalexterno
-    const rutExistente = await db.query(
-      "SELECT COUNT(*) AS count FROM camiones WHERE RUTCA = ?",
-      [rutCA]
-    );
-    const count = rutExistente[0][0].count;
-    if (count > 0) {
-      await db.query(
-        "INSERT INTO registros (PERSONAL, APELLIDO, RUT, PATENTE, ROL, OBSERVACIONES, GUIADESPACHO, FECHAINGRESO, SELLO, ESTADO, CHEQUEADO, GUARDIA, PATENTERACA, VEHICULO, MODELO, COLOR, MARCA, IDINST) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        [
-          choferCA,
-          apellidochoferCA,
-          rutCA,
-          patenteCA,
-          rolCA,
-          observacionesCA,
-          guiaDespachoCA,
-          fechaActualChile,
-          selloCA,
-          estado,
-          chequeo,
-          NombreUsuarioCA,
-          patenteRACA,
-          tipoCA,
-          modeloCA,
-          colorCA,
-          marcaCA,
-          IDINST,
-        ]
-      );
-
-      await db.query(
-        "INSERT INTO logs (PERSONAL, APELLIDO, RUT, PATENTE, ROL, OBSERVACIONES, GUIADESPACHO, SELLO, FECHAINGRESO, ESTADO, GUARDIA, PATENTERACA, VEHICULO, MODELO, COLOR, MARCA, IDINST) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        [
-          choferCA,
-          apellidochoferCA,
-          rutCA,
-          patenteCA,
-          rolCA,
-          observacionesCA,
-          guiaDespachoCA,
-          selloCA,
-          fechaActualChile,
-          estado,
-          NombreUsuarioCA,
-          patenteRACA,
-          tipoCA,
-          modeloCA,
-          colorCA,
-          marcaCA,
-          IDINST,
-        ]
-      );
-
-      res.send("Entrada/salida registrada correctamente");
-      return;
-    }
-
-    await db.query(
-      "INSERT INTO camiones (CHOFERCA, APELLIDOCHOFERCA, RUTCA, PATENTECA, MARCACA, TIPOCA, MODELOCA, COLORCA, EMPRESACA, ESTADOCA) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      [
-        choferCA,
-        apellidochoferCA,
-        rutCA,
-        patenteCA,
-        marcaCA,
-        tipoCA,
-        modeloCA,
-        colorCA,
-        empresaCA,
-        estadoCA,
-      ]
-    );
-    await db.query(
-      "INSERT INTO registros (PERSONAL, APELLIDO, RUT, PATENTE, ROL, OBSERVACIONES, GUIADESPACHO, FECHAINGRESO, SELLO, ESTADO, CHEQUEADO, GUARDIA, PATENTERACA, VEHICULO, MODELO, COLOR, MARCA, IDINST) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      [
-        choferCA,
-        apellidochoferCA,
-        rutCA,
-        patenteCA,
-        rolCA,
-        observacionesCA,
-        guiaDespachoCA,
-        fechaActualChile,
-        selloCA,
-        estado,
-        chequeo,
-        NombreUsuarioCA,
-        patenteRACA,
-        tipoCA,
-        modeloCA,
-        colorCA,
-        marcaCA,
-        IDINST,
-      ]
-    );
-
-    await db.query(
-      "INSERT INTO logs (PERSONAL, APELLIDO, RUT, PATENTE, ROL, OBSERVACIONES, GUIADESPACHO, SELLO, FECHAINGRESO, ESTADO, GUARDIA, PATENTERACA, VEHICULO, MODELO, COLOR, MARCA, IDINST) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      [
-        choferCA,
-        apellidochoferCA,
-        rutCA,
-        patenteCA,
-        rolCA,
-        observacionesCA,
-        guiaDespachoCA,
-        selloCA,
-        fechaActualChile,
-        estado,
-        NombreUsuarioCA,
-        patenteRACA,
-        tipoCA,
-        modeloCA,
-        colorCA,
-        marcaCA,
-        IDINST,
-      ]
-    );
-
-    res.send("Entrada/salida registrada correctamente");
-  } catch (error) {
-    console.error("Error al registrar ingreso:", error);
-    res.status(500).send("Error al registrar ingreso");
   }
 });
 
@@ -1347,59 +860,37 @@ app.post("/FormularioSalida/:IDR", async (req, res) => {
   const Estado = "Salida";
 
   try {
-    // Insertar un nuevo registro para la salida (persona + camión)
+    // 1. Insertar el nuevo registro de salida
     await db.query(
-      "INSERT INTO registro (RutP, NombreP, ApellidoP, ActividadP, EmpresaP, ComentarioP, TipoPersona, Patente, PatenteR, Tipo, Modelo, Marca, Color, GuiaDS, SelloSa, Instalacion, RutU, FechaSalida, NombreU, Ciclo, Estado) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      `INSERT INTO registro (
+        RutP, NombreP, ApellidoP, ActividadP, EmpresaP, ComentarioP,
+        TipoPersona, Patente, PatenteR, Tipo, Modelo, Marca, Color,
+        GuiaDS, SelloSa, Instalacion, RutU, FechaSalida, NombreU, Ciclo, Estado
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        RutP,
-        NombreP,
-        ApellidoP,
-        ActividadP,
-        EmpresaP,
-        ComentarioP,
-        TipoPersona,
-        Patente,
-        PatenteR,
-        Tipo,
-        Modelo,
-        Marca,
-        Color,
-        GuiaDS,
-        SelloSa,
-        instalacionU,
-        rutu,
-        fechaActualChile,
-        NombreU,
-        Ciclo,
-        Estado,
+        RutP, NombreP, ApellidoP, ActividadP, EmpresaP, ComentarioP,
+        TipoPersona, Patente, PatenteR, Tipo, Modelo, Marca, Color,
+        GuiaDS, SelloSa, instalacionU, rutu, fechaActualChile, NombreU,
+        Ciclo, Estado
       ]
     );
 
-    // Obtener todos los registros que cumplen con la condición
-    const [matchingRecords] = await db.query(
-      `SELECT * 
-       FROM registro 
-       WHERE (RutP = ? OR Patente = ?) 
-       AND Estado = 'Ingreso' 
-       AND Ciclo = 0`,
+    // 2. Actualizar solo el último ingreso pendiente (Ciclo = 0) de esa persona/patente
+    await db.query(
+      `UPDATE registro 
+       SET Ciclo = 1 
+       WHERE IDR = (
+         SELECT IDR FROM (
+           SELECT IDR FROM registro 
+           WHERE (RutP = ? OR Patente = ?) 
+             AND Estado = 'Ingreso' 
+             AND Ciclo = 0 
+           ORDER BY IDR DESC 
+           LIMIT 1
+         ) AS sub
+       )`,
       [RutP, Patente]
     );
-
-    if (matchingRecords.length > 0) {
-      // Actualizar el ciclo de los registros encontrados
-      const [updateResult] = await db.query(
-        `UPDATE registro 
-         SET Ciclo = 1 
-         WHERE (RutP = ? OR Patente = ?) 
-         AND Estado = 'Ingreso' 
-         AND Ciclo = 0`,
-        [RutP, Patente]
-      );
-    } else {
-      console.log(
-        "No se encontraron registros relacionados para actualizar el ciclo."
-      );
-    }
 
     res.send("Salida registrada correctamente.");
   } catch (error) {
@@ -1546,21 +1037,52 @@ app.get("/TablaNovedad", async (req, res) => {
   }
 });
 
-app.post("/AgregarNO", upload.array("FOTOSNO", 10), async (req, res) => {
+
+app.post("/AgregarNO", upload.array("FOTOSNO"), async (req, res) => {
   const NotaNO = req.body.NotaNO;
   const GuardiaNO = req.body.GuardiaNO;
   const HoraNO = req.body.HoraNO;
   const IDINST = req.body.IDINST;
-
-  // Obtener los nombres de los archivos subidos
-  const FOTOSNO = req.files ? req.files.map((file) => file.filename) : [];
+  const files = req.files;
 
   try {
-    // Guarda los datos en la base de datos
-    await db.query(
-      "INSERT INTO novedad (Descripcion, Foto, Guardia, Fecha, Instalacion ) VALUES (?, ?, ?, ?, ?)",
-      [NotaNO, FOTOSNO.join(", "), GuardiaNO, HoraNO, IDINST]
+
+    const [result] = await db.query(
+      "INSERT INTO novedad (Descripcion, Guardia, Fecha, Instalacion) VALUES (?, ?, ?, ?)",
+      [NotaNO, GuardiaNO, HoraNO, IDINST]
     );
+
+    const IDNO = result.insertId;
+
+    for (const file of files) {
+      await new Promise((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+          {
+            folder: "novedades",
+            transformation: [
+              { width: 800, crop: "limit" },
+              { fetch_format: "auto" },
+              { quality: "auto" },
+            ],
+          },
+          async (error, result) => {
+            if (error) {
+              console.error("Error subiendo imagen a Cloudinary:", error);
+              return reject(error);
+            }
+
+ 
+            await db.query(
+              "INSERT INTO fotos_novedad (novedad_id, url) VALUES (?, ?)",
+              [IDNO, result.secure_url]
+            );
+            resolve();
+          }
+        );
+
+        streamifier.createReadStream(file.buffer).pipe(uploadStream);
+      });
+    }
 
     res.send("Novedad registrada con éxito");
   } catch (error) {
@@ -1572,18 +1094,41 @@ app.post("/AgregarNO", upload.array("FOTOSNO", 10), async (req, res) => {
 app.get("/VerNO/:IDNO", async (req, res) => {
   const { IDNO } = req.params;
   try {
-    const [rows, fields] = await db.query(
-      "SELECT * FROM novedad WHERE IDNO = ?",
+    const [rows] = await db.query(
+      `SELECT n.IDNO, n.Descripcion, n.Guardia, n.Fecha, n.Instalacion, f.url AS foto_url
+       FROM novedad n
+       LEFT JOIN fotos_novedad f ON n.IDNO = f.novedad_id
+       WHERE n.IDNO = ?`,
       [IDNO]
     );
-    res.json(rows);
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: "Novedad no encontrada" });
+    }
+
+
+    const novedad = {
+      IDNO: rows[0].IDNO,
+      Descripcion: rows[0].Descripcion,
+      Guardia: rows[0].Guardia,
+      Fecha: rows[0].Fecha,
+      Instalacion: rows[0].Instalacion,
+      fotos: [],
+    };
+
+    for (const row of rows) {
+      if (row.foto_url) {
+        novedad.fotos.push(row.foto_url);
+      }
+    }
+
+    res.json(novedad);
   } catch (error) {
     console.error("Error al ejecutar la consulta:", error);
     res.status(500).json({ error: "Error al ejecutar la consulta" });
   }
 });
 
-//GESTION CONTRASEÑA
 
 //GESTION USUARIOS
 
@@ -1602,19 +1147,17 @@ app.post("/AgregarUsuario", async (req, res) => {
   const EstadoU = "VIGENTE";
 
   try {
-    // Verificar si el RUT existe en la tabla camiones
+
     const rutExistente = await db.query(
       "SELECT COUNT(*) AS count FROM usuario WHERE RUTU = ?",
       [RUTU]
     );
     const count = rutExistente[0][0].count;
     if (count > 0) {
-      // El RUT ya existe en la tabla camiones
-      res.send("El RUT ya existe en la base de datos");
+      return res.status(409).send({ message: "El Usuario ya existe en la base de datos" });
       return;
     }
 
-    // El RUT no existe, insertarlo en la tabla personalexterno
     await db.query(
       "INSERT INTO usuario (RUTU, NombreU, TipoU, PasswordU, InstalacionU, EstadoU) VALUES (?, ?, ?, ?, ?, ?)",
       [RUTU, NombreU, TipoU, PasswordU, InstalacionU, EstadoU]
@@ -1667,69 +1210,69 @@ app.get("/EditarUsuarios/:RUTU", async (req, res) => {
 
 //GESTION TABLA INGRESO RE
 
-app.get("/FormularioSalidaRE/:IDR", async (req, res) => {
-  const { IDR } = req.params;
-  try {
-    const [rows, fields] = await db.query(
-      "SELECT * FROM registros WHERE IDR = ?",
-      [IDR]
-    );
-    res.json(rows);
-  } catch (error) {
-    console.error("Error al ejecutar la consulta:", error);
-    res.status(500).json({ error: "Error al ejecutar la consulta" });
-  }
-});
+// app.get("/FormularioSalidaRE/:IDR", async (req, res) => {
+//   const { IDR } = req.params;
+//   try {
+//     const [rows, fields] = await db.query(
+//       "SELECT * FROM registros WHERE IDR = ?",
+//       [IDR]
+//     );
+//     res.json(rows);
+//   } catch (error) {
+//     console.error("Error al ejecutar la consulta:", error);
+//     res.status(500).json({ error: "Error al ejecutar la consulta" });
+//   }
+// });
 
-app.post("/FormularioSalidaRE/:IDR", async (req, res) => {
-  const IDR = req.params.IDR;
-  const personal = req.body.PERSONAL;
-  const apellido = req.body.APELLIDO;
-  const rut = req.body.RUT;
-  const patente = req.body.PATENTE;
-  const vehiculo = req.body.VEHICULO;
-  const modelo = req.body.MODELO;
-  const color = req.body.COLOR;
-  const rol = req.body.ROL;
-  const observaciones = req.body.OBSERVACIONES;
-  const guiadespacho = req.body.GUIADESPACHO;
-  const sello = req.body.SELLO;
-  const estado = "SALIDA";
-  const fechasalida = req.body.FECHASALIDA;
-  const IDINST = req.body.IDINST;
-  const nombreUsuario = req.body.NombreUsuario;
+// app.post("/FormularioSalidaRE/:IDR", async (req, res) => {
+//   const IDR = req.params.IDR;
+//   const personal = req.body.PERSONAL;
+//   const apellido = req.body.APELLIDO;
+//   const rut = req.body.RUT;
+//   const patente = req.body.PATENTE;
+//   const vehiculo = req.body.VEHICULO;
+//   const modelo = req.body.MODELO;
+//   const color = req.body.COLOR;
+//   const rol = req.body.ROL;
+//   const observaciones = req.body.OBSERVACIONES;
+//   const guiadespacho = req.body.GUIADESPACHO;
+//   const sello = req.body.SELLO;
+//   const estado = "SALIDA";
+//   const fechasalida = req.body.FECHASALIDA;
+//   const IDINST = req.body.IDINST;
+//   const nombreUsuario = req.body.NombreUsuario;
 
-  try {
-    await db.query(
-      "INSERT INTO logs (PERSONAL, APELLIDO, RUT, PATENTE, ROL, OBSERVACIONES, GUIADESPACHO, SELLO, FECHASALIDA, GUARDIA, ESTADO, VEHICULO, MODELO, COLOR, IDINST ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      [
-        personal,
-        apellido,
-        rut,
-        patente,
-        rol,
-        observaciones,
-        guiadespacho,
-        sello,
-        fechasalida,
-        nombreUsuario,
-        estado,
-        vehiculo,
-        modelo,
-        color,
-        IDINST,
-      ]
-    );
+//   try {
+//     await db.query(
+//       "INSERT INTO logs (PERSONAL, APELLIDO, RUT, PATENTE, ROL, OBSERVACIONES, GUIADESPACHO, SELLO, FECHASALIDA, GUARDIA, ESTADO, VEHICULO, MODELO, COLOR, IDINST ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+//       [
+//         personal,
+//         apellido,
+//         rut,
+//         patente,
+//         rol,
+//         observaciones,
+//         guiadespacho,
+//         sello,
+//         fechasalida,
+//         nombreUsuario,
+//         estado,
+//         vehiculo,
+//         modelo,
+//         color,
+//         IDINST,
+//       ]
+//     );
 
-    // await db.query('UPDATE registros SET ESTADO = ? WHERE IDR = ?', ['SALIDA', IDR]);
-    await db.query("DELETE FROM registros WHERE IDR = ?", [IDR]);
+//     // await db.query('UPDATE registros SET ESTADO = ? WHERE IDR = ?', ['SALIDA', IDR]);
+//     await db.query("DELETE FROM registros WHERE IDR = ?", [IDR]);
 
-    res.send("Salida registrada correctamente");
-  } catch (error) {
-    console.error("Error al marcar salida:", error);
-    res.status(500).send("Error al marcar salida");
-  }
-});
+//     res.send("Salida registrada correctamente");
+//   } catch (error) {
+//     console.error("Error al marcar salida:", error);
+//     res.status(500).send("Error al marcar salida");
+//   }
+// });
 
 //GESTION NOMBRE USUARIO
 
@@ -1832,34 +1375,61 @@ app.get("/VerLog/:IDR", async (req, res) => {
 
 app.get("/LogsOld", async (req, res) => {
   try {
-      const { IDINST } = req.query;
+    const { IDINST } = req.query;
 
-      if (!IDINST) {
-          return res.status(400).json({ error: 'Se requiere el IDINST' });
-      }
+    if (!IDINST) {
+      return res.status(400).json({ error: "Se requiere el IDINST" });
+    }
 
-      const query = `
+    const query = `
           SELECT * FROM logs 
-          WHERE IDINST = ?
+          WHERE IDINST = 2
       `;
 
-      const [rows] = await dbAntigua.query(query, [IDINST]);
-      res.json(rows);
+    const [rows] = await dbAntigua.query(query, [IDINST]);
+
+    res.json(rows);
   } catch (error) {
-      console.error('Error al ejecutar la consulta:', error);
-      res.status(500).json({ error: 'Error al ejecutar la consulta' });
+    console.error("Error al ejecutar la consulta:", error);
+    res.status(500).json({ error: "Error al ejecutar la consulta" });
   }
 });
-
 
 app.get("/VerLogOld/:IDL", async (req, res) => {
   const { IDL } = req.params;
   try {
-      const [rows, fields] = await dbAntigua.query("SELECT * FROM logs WHERE IDL = ?", [IDL]);
-      res.json(rows);
+    const [rows, fields] = await dbAntigua.query(
+      "SELECT * FROM logs WHERE IDL = ?",
+      [IDL]
+    );
+
+    res.json(rows);
   } catch (error) {
-      console.error('Error al ejecutar la consulta:', error);
-      res.status(500).json({ error: 'Error al ejecutar la consulta' });
+    console.error("Error al ejecutar la consulta:", error);
+    res.status(500).json({ error: "Error al ejecutar la consulta" });
+  }
+});
+
+app.post("/VerLogOldLote", async (req, res) => {
+  const { idls } = req.body; // espera un array
+
+  if (!Array.isArray(idls) || idls.length === 0) {
+    return res
+      .status(400)
+      .json({ error: "Debe enviar un array de IDL válidos." });
+  }
+
+  try {
+    // Usa placeholders dinámicos (?, ?, ?) para la consulta
+    const placeholders = idls.map(() => "?").join(",");
+    const query = `SELECT * FROM logs WHERE IDL IN (${placeholders})`;
+
+    const [rows] = await dbAntigua.query(query, idls);
+
+    res.json(rows);
+  } catch (error) {
+    console.error("Error al ejecutar la consulta:", error);
+    res.status(500).json({ error: "Error al ejecutar la consulta" });
   }
 });
 
@@ -1885,10 +1455,12 @@ app.get("/Instalaciones", async (req, res) => {
   }
 });
 
+//GET AUTOSUGGESTIONS
+
 app.get("/RutSuggestion/suggestions", async (req, res) => {
   try {
     const { query } = req.query;
-    const q = "SELECT * FROM persona WHERE RUTP LIKE ? AND EstadoP = 'VIGENTE'";
+    const q = "SELECT * FROM persona WHERE RUTP LIKE ?";
     const results = await db.query(q, [`%${query}%`]);
     const suggestions = results.map((result) => result.RUTP);
     res.json({ results });
@@ -1933,6 +1505,40 @@ app.get("/RutSuggestion/suggestion/:RUTP", async (req, res) => {
   }
 });
 
+app.get("/PatenteRSuggestion/suggestions", async (req, res) => {
+  try {
+    const { query } = req.query;
+    const q = "SELECT * FROM patenter WHERE PatenteR LIKE ?";
+    const results = await db.query(q, [`%${query}%`]);
+    const suggestions = results.map((result) => result.PatenteR);
+    res.json({ results });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error al obtener sugerencias" });
+  }
+});
+
+app.get("/PatenteRSuggestion/suggestion/:PatenteR", async (req, res) => {
+  try {
+    const { PatenteR } = req.params;
+    const query = "SELECT * FROM patenter WHERE PatenteR = ?";
+
+    const [result] = await db.query(query, [PatenteR]);
+
+    if (result.length === 0) {
+      return res.status(404).json({ error: "Patente rampla no encontrada" });
+    }
+
+    // En lugar de reasignar PatenteR, usa una nueva variable
+    const patenteData = result[0];
+
+    res.json(patenteData);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error al obtener detalles de la Patente" });
+  }
+});
+
 app.get("/PatenteSuggestion/suggestions", async (req, res) => {
   try {
     const { query } = req.query;
@@ -1958,9 +1564,9 @@ app.get("/PatenteSuggestion/suggestion/:PATENTE", async (req, res) => {
       return res.status(404).json({ error: "Patente no encontrado" });
     }
 
-    const { PatenteR, Tipo, Modelo, Marca, Color } = result[0];
+    const { Tipo, Modelo, Marca, Color } = result[0];
 
-    res.json({ PatenteR, Tipo, Modelo, Marca, Color });
+    res.json({ Tipo, Modelo, Marca, Color });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Error al obtener detalles del Rut" });
@@ -1973,7 +1579,7 @@ app.get("/RutSalida/suggestions", async (req, res) => {
     const q =
       "SELECT * FROM registro WHERE RutP LIKE ? AND Estado = 'Ingreso' AND Ciclo = 0";
     const results = await db.query(q, [`%${query}%`]);
-    const suggestions = results.map((result) => result.RUTP);
+    const suggestions = results.map((result) => result.RutP);
     res.json({ results });
   } catch (error) {
     console.error(error);
@@ -2022,8 +1628,77 @@ app.get("/RutSalida/suggestion/:RutP", async (req, res) => {
       TipoPersona,
       Estado,
     });
+   
   } catch (error) {
     console.error("Error al obtener detalles del Rut:", error);
+    res.status(500).json({ error: "Error al obtener detalles del Rut" });
+  }
+});
+
+app.get("/EmpresaPSuggestion/suggestions", async (req, res) => {
+  try {
+    const { query } = req.query;
+    const q =
+      "SELECT Nombre FROM Empresa WHERE Nombre LIKE ? AND Estado = 'VIGENTE'";
+
+    const [rows] = await db.query(q, [`%${query}%`]);
+    res.json({ results: [rows] });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error al obtener sugerencias" });
+  }
+});
+
+app.get("/EmpresaPSuggestion/suggestion/:EmpresaP", async (req, res) => {
+  try {
+    const { EmpresaP } = req.params;
+    const query =
+      "SELECT Nombre FROM Empresa WHERE Nombre = ? AND Estado = 'VIGENTE'";
+    const [result] = await db.query(query, [EmpresaP]);
+
+    if (result.length === 0) {
+      return res.status(404).json({ error: "Empresa no encontrada" });
+    }
+
+    const empresaData = result[0];
+
+    res.json(empresaData);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error al obtener detalles de la Empresa" });
+  }
+});
+
+app.get("/PatenteSuggestionSalida/suggestions", async (req, res) => {
+  const { query } = req.query;
+  const q =
+    "SELECT * FROM registro WHERE Patente LIKE ? AND (RutP IS NULL OR RutP = '')";
+
+  try {
+    const [rows] = await db.query(q, [`%${query}%`]); // ✅ Desestructuramos directamente
+    res.json({ results: rows });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error al obtener sugerencias" });
+  }
+});
+
+app.get("/PatenteSuggestionSalida/suggestion/:PATENTE", async (req, res) => {
+  try {
+    const { PATENTE } = req.params;
+    const query = "SELECT * FROM registro WHERE Patente = ?";
+
+    const [result] = await db.query(query, [PATENTE]);
+
+    if (result.length === 0) {
+      return res.status(404).json({ error: "Patente no encontrado" });
+    }
+
+    const { Tipo, Modelo, Marca, Color, PatenteR, SelloEn, GuiaDE } = result[0];
+
+    res.json({ Tipo, Modelo, Marca, Color, PatenteR, SelloEn, GuiaDE });
+  } catch (error) {
+    console.error(error);
     res.status(500).json({ error: "Error al obtener detalles del Rut" });
   }
 });
