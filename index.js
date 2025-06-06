@@ -27,7 +27,6 @@ const CLOUDINARY_CLOUD_NAME = process.env.CLOUDINARY_CLOUD_NAME;
 const CLOUDINARY_API_SECRET = process.env.CLOUDINARY_API_SECRET;
 const CLOUDINARY_API_KEY = process.env.CLOUDINARY_API_KEY;
 
-const isProd = process.env.NODE_ENV;
 const app = express();
 app.use(cookieParser());
 app.use(express.json());
@@ -79,7 +78,6 @@ cloudinary.config({
 
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
-
 
 // GESTION LOGIN
 
@@ -566,7 +564,6 @@ app.delete("/Transporte/:PATENTE", async (req, res) => {
   }
 });
 
-
 app.post("/AgregarTransporte", async (req, res) => {
   const { PATENTE, Tipo, Modelo, Marca, Color, EmpresaP } = req.body;
   const Estado = "VIGENTE";
@@ -577,7 +574,9 @@ app.post("/AgregarTransporte", async (req, res) => {
     );
 
     if (count > 0) {
-      return res.status(409).send({ message: "La Patente ya existe en la base de datos" });
+      return res
+        .status(409)
+        .send({ message: "La Patente ya existe en la base de datos" });
     }
 
     await db.query(
@@ -596,7 +595,7 @@ app.post("/AgregarTransporte", async (req, res) => {
 //FORMULARIO INGRESO PERSONA
 
 app.post("/FormularioPersona", async (req, res) => {
-  const {
+  let {
     RUTP,
     NombreP,
     ApellidoP,
@@ -617,6 +616,17 @@ app.post("/FormularioPersona", async (req, res) => {
     NombreU,
     rutu,
   } = req.body;
+
+  RUTP = RUTP?.trim();
+  PATENTE = PATENTE?.trim();
+  PatenteR = PatenteR?.trim();
+
+  const tipoFinal = (
+    req.body.TipoCamion?.trim() ||
+    req.body.TipoT?.trim() ||
+    ""
+  ).toUpperCase();
+
   const Ciclo = false;
   const Estado = "Ingreso";
   const EstadoP = "VIGENTE";
@@ -633,6 +643,21 @@ app.post("/FormularioPersona", async (req, res) => {
       return res.status(400).json({
         error: `Esta persona se encuentra en la instalación: ${instalacionU}.`,
       });
+    }
+
+    if (PATENTE) {
+      const registroPatenteExistente = await db.query(
+        `SELECT COUNT(*) AS count 
+     FROM registro 
+     WHERE Patente = ? AND Instalacion = ? AND Estado = 'Ingreso' AND Ciclo = FALSE`,
+        [PATENTE, instalacionU]
+      );
+
+      if (registroPatenteExistente[0][0].count > 0) {
+        return res.status(400).json({
+          error: `Esta Patente se encuentra en la instalación: ${instalacionU}.`,
+        });
+      }
     }
 
     // 2. Verificar si la persona existe en la tabla `persona`
@@ -655,21 +680,20 @@ app.post("/FormularioPersona", async (req, res) => {
     if (PATENTE) {
       const patenteExistente = await db.query(
         "SELECT COUNT(*) AS count FROM transporte WHERE PATENTE = ?",
-        [PATENTE]
+        [PATENTE.trim()]
       );
 
       if (patenteExistente[0][0].count === 0) {
-        // Si no existe, insertar en `transporte`
+        // Determinar el valor correcto para el campo Tipo
+
         await db.query(
-          "INSERT INTO transporte (PATENTE, Tipo, Modelo, Marca, Color, Empresa, Estado) VALUES ( ?, ?, ?, ?, ?, ?)",
-          [PATENTE, Tipo, Modelo, Marca, Color, EmpresaP, EstadoP]
+          "INSERT INTO transporte (PATENTE, Tipo, Modelo, Marca, Color, Empresa, Estado) VALUES (?, ?, ?, ?, ?, ?, ?)",
+          [PATENTE.trim(), tipoFinal, Modelo, Marca, Color, EmpresaP, EstadoP]
         );
-        console.log("Nueva patente insertada en la tabla transporte.");
       } else {
         console.log("La patente ya existe en la tabla transporte.");
       }
     }
-
     if (EmpresaP) {
       const empresaPExistente = await db.query(
         "SELECT COUNT(*) AS count FROM empresa WHERE Nombre = ?",
@@ -702,7 +726,7 @@ app.post("/FormularioPersona", async (req, res) => {
         Estado,
         PATENTE,
         PatenteR,
-        Tipo,
+        tipoFinal,
         Modelo,
         Marca,
         Color,
@@ -826,6 +850,7 @@ app.get("/FormularioSalida/:IDR", async (req, res) => {
   }
 });
 
+
 app.post("/FormularioSalida/:IDR", async (req, res) => {
   const IDR = req.params.IDR;
   const {
@@ -854,37 +879,87 @@ app.post("/FormularioSalida/:IDR", async (req, res) => {
   const Estado = "Salida";
 
   try {
-    // 1. Insertar el nuevo registro de salida
-    await db.query(
+    // 1. Insertar nuevo registro de salida
+    const [insertSalida] = await db.query(
       `INSERT INTO registro (
         RutP, NombreP, ApellidoP, ActividadP, EmpresaP, ComentarioP,
         TipoPersona, Patente, PatenteR, Tipo, Modelo, Marca, Color,
         GuiaDS, SelloSa, Instalacion, RutU, FechaSalida, NombreU, Ciclo, Estado
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        RutP, NombreP, ApellidoP, ActividadP, EmpresaP, ComentarioP,
-        TipoPersona, Patente, PatenteR, Tipo, Modelo, Marca, Color,
-        GuiaDS, SelloSa, instalacionU, rutu, fechaActualChile, NombreU,
-        Ciclo, Estado
+        RutP,
+        NombreP,
+        ApellidoP,
+        ActividadP,
+        EmpresaP,
+        ComentarioP,
+        TipoPersona,
+        Patente,
+        PatenteR,
+        Tipo,
+        Modelo,
+        Marca,
+        Color,
+        GuiaDS,
+        SelloSa,
+        instalacionU,
+        rutu,
+        fechaActualChile,
+        NombreU,
+        Ciclo,
+        Estado,
       ]
     );
 
-    // 2. Actualizar solo el último ingreso pendiente (Ciclo = 0) de esa persona/patente
-    await db.query(
+    // 2.1. Actualizar ingreso pendiente de la persona
+    const [personaIngreso] = await db.query(
       `UPDATE registro 
        SET Ciclo = 1 
        WHERE IDR = (
          SELECT IDR FROM (
            SELECT IDR FROM registro 
-           WHERE (RutP = ? OR Patente = ?) 
+           WHERE RutP = ? 
              AND Estado = 'Ingreso' 
              AND Ciclo = 0 
            ORDER BY IDR DESC 
            LIMIT 1
          ) AS sub
        )`,
-      [RutP, Patente]
+      [RutP]
     );
+
+    // 2.2. Actualizar ingreso pendiente del transporte (por Patente)
+    if (Patente && Patente.trim() !== "") {
+      // Primero verificar si existe un ingreso pendiente con esa patente
+      const [camionPendiente] = await db.query(
+        `SELECT IDR FROM registro 
+     WHERE Patente = ? 
+       AND Estado = 'Ingreso' 
+       AND Ciclo = 0 
+     ORDER BY IDR DESC 
+     LIMIT 1`,
+        [Patente.trim()]
+      );
+
+      if (camionPendiente.length > 0) {
+        const IDRcamion = camionPendiente[0].IDR;
+
+        // Actualizar Ciclo para ese ingreso pendiente del camión
+        const [camionIngreso] = await db.query(
+          `UPDATE registro 
+       SET Ciclo = 1 
+       WHERE IDR = ?`,
+          [IDRcamion]
+        );
+
+      } else {
+        console.log("No hay ingreso pendiente con esa patente:", Patente);
+      }
+    } else {
+      console.log(
+        "No se proporciona patente para actualizar ingreso pendiente del camión"
+      );
+    }
 
     res.send("Salida registrada correctamente.");
   } catch (error) {
@@ -1031,7 +1106,6 @@ app.get("/TablaNovedad", async (req, res) => {
   }
 });
 
-
 app.post("/AgregarNO", upload.array("FOTOSNO"), async (req, res) => {
   const NotaNO = req.body.NotaNO;
   const GuardiaNO = req.body.GuardiaNO;
@@ -1040,7 +1114,6 @@ app.post("/AgregarNO", upload.array("FOTOSNO"), async (req, res) => {
   const files = req.files;
 
   try {
-
     const [result] = await db.query(
       "INSERT INTO novedad (Descripcion, Guardia, Fecha, Instalacion) VALUES (?, ?, ?, ?)",
       [NotaNO, GuardiaNO, HoraNO, IDINST]
@@ -1065,7 +1138,6 @@ app.post("/AgregarNO", upload.array("FOTOSNO"), async (req, res) => {
               return reject(error);
             }
 
- 
             await db.query(
               "INSERT INTO fotos_novedad (novedad_id, url) VALUES (?, ?)",
               [IDNO, result.secure_url]
@@ -1100,7 +1172,6 @@ app.get("/VerNO/:IDNO", async (req, res) => {
       return res.status(404).json({ error: "Novedad no encontrada" });
     }
 
-
     const novedad = {
       IDNO: rows[0].IDNO,
       Descripcion: rows[0].Descripcion,
@@ -1123,7 +1194,6 @@ app.get("/VerNO/:IDNO", async (req, res) => {
   }
 });
 
-
 //GESTION USUARIOS
 
 app.get("/Usuarios", async (req, res) => {
@@ -1141,14 +1211,15 @@ app.post("/AgregarUsuario", async (req, res) => {
   const EstadoU = "VIGENTE";
 
   try {
-
     const rutExistente = await db.query(
       "SELECT COUNT(*) AS count FROM usuario WHERE RUTU = ?",
       [RUTU]
     );
     const count = rutExistente[0][0].count;
     if (count > 0) {
-      return res.status(409).send({ message: "El Usuario ya existe en la base de datos" });
+      return res
+        .status(409)
+        .send({ message: "El Usuario ya existe en la base de datos" });
       return;
     }
 
@@ -1201,72 +1272,6 @@ app.get("/EditarUsuarios/:RUTU", async (req, res) => {
     res.status(500).json({ error: "Error al ejecutar la consulta" });
   }
 });
-
-//GESTION TABLA INGRESO RE
-
-// app.get("/FormularioSalidaRE/:IDR", async (req, res) => {
-//   const { IDR } = req.params;
-//   try {
-//     const [rows, fields] = await db.query(
-//       "SELECT * FROM registros WHERE IDR = ?",
-//       [IDR]
-//     );
-//     res.json(rows);
-//   } catch (error) {
-//     console.error("Error al ejecutar la consulta:", error);
-//     res.status(500).json({ error: "Error al ejecutar la consulta" });
-//   }
-// });
-
-// app.post("/FormularioSalidaRE/:IDR", async (req, res) => {
-//   const IDR = req.params.IDR;
-//   const personal = req.body.PERSONAL;
-//   const apellido = req.body.APELLIDO;
-//   const rut = req.body.RUT;
-//   const patente = req.body.PATENTE;
-//   const vehiculo = req.body.VEHICULO;
-//   const modelo = req.body.MODELO;
-//   const color = req.body.COLOR;
-//   const rol = req.body.ROL;
-//   const observaciones = req.body.OBSERVACIONES;
-//   const guiadespacho = req.body.GUIADESPACHO;
-//   const sello = req.body.SELLO;
-//   const estado = "SALIDA";
-//   const fechasalida = req.body.FECHASALIDA;
-//   const IDINST = req.body.IDINST;
-//   const nombreUsuario = req.body.NombreUsuario;
-
-//   try {
-//     await db.query(
-//       "INSERT INTO logs (PERSONAL, APELLIDO, RUT, PATENTE, ROL, OBSERVACIONES, GUIADESPACHO, SELLO, FECHASALIDA, GUARDIA, ESTADO, VEHICULO, MODELO, COLOR, IDINST ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-//       [
-//         personal,
-//         apellido,
-//         rut,
-//         patente,
-//         rol,
-//         observaciones,
-//         guiadespacho,
-//         sello,
-//         fechasalida,
-//         nombreUsuario,
-//         estado,
-//         vehiculo,
-//         modelo,
-//         color,
-//         IDINST,
-//       ]
-//     );
-
-//     // await db.query('UPDATE registros SET ESTADO = ? WHERE IDR = ?', ['SALIDA', IDR]);
-//     await db.query("DELETE FROM registros WHERE IDR = ?", [IDR]);
-
-//     res.send("Salida registrada correctamente");
-//   } catch (error) {
-//     console.error("Error al marcar salida:", error);
-//     res.status(500).send("Error al marcar salida");
-//   }
-// });
 
 //GESTION NOMBRE USUARIO
 
@@ -1622,7 +1627,6 @@ app.get("/RutSalida/suggestion/:RutP", async (req, res) => {
       TipoPersona,
       Estado,
     });
-   
   } catch (error) {
     console.error("Error al obtener detalles del Rut:", error);
     res.status(500).json({ error: "Error al obtener detalles del Rut" });
@@ -1665,11 +1669,15 @@ app.get("/EmpresaPSuggestion/suggestion/:EmpresaP", async (req, res) => {
 
 app.get("/PatenteSuggestionSalida/suggestions", async (req, res) => {
   const { query } = req.query;
-  const q =
-    "SELECT * FROM registro WHERE Patente LIKE ? AND (RutP IS NULL OR RutP = '')";
-
+  const q = `
+    SELECT * 
+    FROM registro 
+    WHERE Patente LIKE ? 
+      AND (RutP IS NULL OR RutP = '') 
+      AND Ciclo = 0
+  `;
   try {
-    const [rows] = await db.query(q, [`%${query}%`]); // ✅ Desestructuramos directamente
+    const [rows] = await db.query(q, [`%${query}%`]);
     res.json({ results: rows });
   } catch (error) {
     console.error(error);
@@ -1694,5 +1702,27 @@ app.get("/PatenteSuggestionSalida/suggestion/:PATENTE", async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Error al obtener detalles del Rut" });
+  }
+});
+
+app.get("/PatenteCheck/valid", async (req, res) => {
+  const { query } = req.query;
+
+  const q = `
+    SELECT COUNT(*) AS count 
+    FROM registro 
+    WHERE Patente = ? 
+      AND (RutP IS NULL OR RutP = '') 
+      AND Ciclo = 0
+  `;
+
+  try {
+    const [rows] = await db.query(q, [query]);
+    const isAvailable = rows[0].count === 0;
+
+    res.json({ available: isAvailable });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error al validar patente" });
   }
 });
