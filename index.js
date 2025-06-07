@@ -1358,19 +1358,44 @@ app.get("/Logs", async (req, res) => {
   }
 });
 
-app.get("/VerLog/:IDR", async (req, res) => {
-  const { IDR } = req.params;
-  try {
-    const [rows, fields] = await db.query(
-      "SELECT * FROM registro WHERE IDR = ?",
-      [IDR]
-    );
-    res.json(rows);
-  } catch (error) {
-    console.error("Error al ejecutar la consulta:", error);
-    res.status(500).json({ error: "Error al ejecutar la consulta" });
-  }
+
+app.post("/VerLogExcel", async (req, res) => {
+    const { idrs } = req.body;
+
+    if (!Array.isArray(idrs) || idrs.length === 0) {
+        return res.status(400).json({ error: "Debe enviar un array de IDR válidos." });
+    }
+
+    try {
+        const placeholders = idrs.map(() => "?").join(",");
+        const query = `SELECT * FROM registro WHERE IDR IN (${placeholders})`;
+
+        const [rows] = await db.query(query, idrs);
+
+
+        res.json(rows);
+    } catch (error) {
+        console.error("Error al ejecutar la consulta:", error);
+        res.status(500).json({ error: "Error al ejecutar la consulta" });
+    }
 });
+
+
+
+
+// app.get("/VerLog/:IDR", async (req, res) => {
+//   const { IDR } = req.params;
+//   try {
+//     const [rows, fields] = await db.query(
+//       "SELECT * FROM registro WHERE IDR = ?",
+//       [IDR]
+//     );
+//     res.json(rows);
+//   } catch (error) {
+//     console.error("Error al ejecutar la consulta:", error);
+//     res.status(500).json({ error: "Error al ejecutar la consulta" });
+//   }
+// });
 
 app.get("/LogsOld", async (req, res) => {
   try {
