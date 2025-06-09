@@ -141,8 +141,8 @@ app.post("/Login", async (req, res) => {
 
         res.cookie("token", token, {
           httpOnly: false,
-          secure: true,
-          domain: ".up.railway.app",
+          secure: false,
+          //domain: ".up.railway.app",
           sameSite: "Lax",
           maxAge: 24 * 60 * 60 * 1000, // 1 día
         });
@@ -1381,21 +1381,19 @@ app.post("/VerLogExcel", async (req, res) => {
 });
 
 
-
-
-// app.get("/VerLog/:IDR", async (req, res) => {
-//   const { IDR } = req.params;
-//   try {
-//     const [rows, fields] = await db.query(
-//       "SELECT * FROM registro WHERE IDR = ?",
-//       [IDR]
-//     );
-//     res.json(rows);
-//   } catch (error) {
-//     console.error("Error al ejecutar la consulta:", error);
-//     res.status(500).json({ error: "Error al ejecutar la consulta" });
-//   }
-// });
+app.get("/VerLog/:IDR", async (req, res) => {
+  const { IDR } = req.params;
+  try {
+    const [rows, fields] = await db.query(
+      "SELECT * FROM registro WHERE IDR = ?",
+      [IDR]
+    );
+    res.json(rows);
+  } catch (error) {
+    console.error("Error al ejecutar la consulta:", error);
+    res.status(500).json({ error: "Error al ejecutar la consulta" });
+  }
+});
 
 app.get("/LogsOld", async (req, res) => {
   try {
