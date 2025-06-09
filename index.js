@@ -56,7 +56,7 @@ export const dbAntigua = createPool({
 app.use(
   cors({
     origin: [
-      "https://app-sis-andes.up.railway.app",
+      "https://andes.up.railway.app",
       "https://vivacious-enthusiasm-production.up.railway.app",
       "http://localhost:4173",
       "http://localhost:5173",
