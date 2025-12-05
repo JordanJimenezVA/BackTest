@@ -141,9 +141,9 @@ app.post("/Login", async (req, res) => {
             : "Instalación no encontrada";
 
         res.cookie("token", token, {
-          httpOnly: false,
-          secure: false,
-          //domain: ".up.railway.app",
+          httpOnly: true,
+          secure: true,
+          domain: ".up.railway.app",
           sameSite: "None",
           maxAge: 24 * 60 * 60 * 1000, // 1 día
         });
