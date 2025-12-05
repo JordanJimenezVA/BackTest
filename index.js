@@ -141,7 +141,7 @@ app.post("/Login", async (req, res) => {
 
         res.cookie("token", token, {
           httpOnly: false,
-          secure: true,
+          secure: false,
           domain: ".up.railway.app",
           sameSite: "Lax",
           maxAge: 24 * 60 * 60 * 1000, // 1 día
