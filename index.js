@@ -110,6 +110,7 @@ app.get("/Logout", (req, res) => {
 });
 
 app.post("/Login", async (req, res) => {
+  console.log("Body: ", req.body);
   const sql = "SELECT * FROM usuario WHERE RUTU = ?";
   try {
     const [rows] = await db.query(sql, [req.body.rutU]);
