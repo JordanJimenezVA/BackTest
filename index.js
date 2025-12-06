@@ -128,7 +128,7 @@ app.post("/Login", async (req, res) => {
         const instalacionU = user.InstalacionU;
         const instalacionUsuario = user.InstalacionU;
 
-        // Aquí se hace la consulta para obtener el nombre de la instalación
+        // obtener nombre instalación
         const [instalacion] = await db.query(
           "SELECT Nombre FROM instalacion WHERE IDI = ?",
           [instalacionUsuario]
@@ -139,16 +139,9 @@ app.post("/Login", async (req, res) => {
             ? instalacion[0].Nombre
             : "Instalación no encontrada";
 
-        res.cookie("token", token, {
-          httpOnly: false,
-          secure: true,
-          domain: ".up.railway.app",
-          sameSite: "Lax",
-          maxAge: 24 * 60 * 60 * 1000, // 1 día
-        });
-
         return res.json({
           Status: "Success",
+          token,
           userType,
           nombreUsuario,
           rut,
@@ -168,6 +161,65 @@ app.post("/Login", async (req, res) => {
     return res.status(500).json({ Message: "Server Error" });
   }
 });
+// app.post("/Login", async (req, res) => {
+//   const sql = "SELECT * FROM usuario WHERE RUTU = ?";
+//   try {
+//     const [rows] = await db.query(sql, [req.body.rutU]);
+
+//     if (rows.length > 0) {
+//       const user = rows[0];
+//       const isMatch = req.body.passwordU === user.PasswordU;
+
+//       if (isMatch) {
+//         const rut = user.RUTU;
+//         const secretKey = process.env.JWT_SECRET_KEY;
+//         const token = jwt.sign({ rut }, secretKey, { expiresIn: "1d" });
+
+//         const userType = user.TipoU;
+//         const nombreUsuario = user.NombreU;
+//         const instalacionU = user.InstalacionU;
+//         const instalacionUsuario = user.InstalacionU;
+
+//         // Aquí se hace la consulta para obtener el nombre de la instalación
+//         const [instalacion] = await db.query(
+//           "SELECT Nombre FROM instalacion WHERE IDI = ?",
+//           [instalacionUsuario]
+//         );
+
+//         let nombreInstalacion =
+//           instalacion.length > 0
+//             ? instalacion[0].Nombre
+//             : "Instalación no encontrada";
+
+//         res.cookie("token", token, {
+//           httpOnly: true,
+//           secure: true,
+//           domain: ".up.railway.app",
+//           sameSite: "None",
+//           maxAge: 24 * 60 * 60 * 1000, // 1 día
+//         });
+
+//         return res.json({
+//           Status: "Success",
+//           userType,
+//           nombreUsuario,
+//           rut,
+//           instalacionU,
+//           instalacionUsuario: nombreInstalacion,
+//         });
+//       } else {
+//         console.log("Error: Contraseña incorrecta");
+//         return res.json({ Message: "Credenciales incorrectas" });
+//       }
+//     } else {
+//       console.log("Error: Usuario no encontrado");
+//       return res.json({ Message: "Usuario no encontrado" });
+//     }
+//   } catch (err) {
+//     console.log("Error ejecutando la consulta:", err);
+//     return res.status(500).json({ Message: "Server Error" });
+//   }
+// });
 
 //GESTION PERSONAS REPORTADAS
 app.put("/Personas%20Reportadas/:RUTP", async (req, res) => {
@@ -732,7 +784,7 @@ app.post("/FormularioPersona", async (req, res) => {
         Color,
         GuiaDE,
         SelloEn,
-        fechaActualChile,
+        null,
         instalacionU,
         NombreU,
         rutu,
@@ -850,7 +902,6 @@ app.get("/FormularioSalida/:IDR", async (req, res) => {
   }
 });
 
-
 app.post("/FormularioSalida/:IDR", async (req, res) => {
   const IDR = req.params.IDR;
   const {
@@ -951,7 +1002,6 @@ app.post("/FormularioSalida/:IDR", async (req, res) => {
        WHERE IDR = ?`,
           [IDRcamion]
         );
-
       } else {
         console.log("No hay ingreso pendiente con esa patente:", Patente);
       }
@@ -1358,28 +1408,27 @@ app.get("/Logs", async (req, res) => {
   }
 });
 
-
 app.post("/VerLogExcel", async (req, res) => {
-    const { idrs } = req.body;
+  const { idrs } = req.body;
 
-    if (!Array.isArray(idrs) || idrs.length === 0) {
-        return res.status(400).json({ error: "Debe enviar un array de IDR válidos." });
-    }
+  if (!Array.isArray(idrs) || idrs.length === 0) {
+    return res
+      .status(400)
+      .json({ error: "Debe enviar un array de IDR válidos." });
+  }
 
-    try {
-        const placeholders = idrs.map(() => "?").join(",");
-        const query = `SELECT * FROM registro WHERE IDR IN (${placeholders})`;
+  try {
+    const placeholders = idrs.map(() => "?").join(",");
+    const query = `SELECT * FROM registro WHERE IDR IN (${placeholders})`;
 
-        const [rows] = await db.query(query, idrs);
+    const [rows] = await db.query(query, idrs);
 
-
-        res.json(rows);
-    } catch (error) {
-        console.error("Error al ejecutar la consulta:", error);
-        res.status(500).json({ error: "Error al ejecutar la consulta" });
-    }
+    res.json(rows);
+  } catch (error) {
+    console.error("Error al ejecutar la consulta:", error);
+    res.status(500).json({ error: "Error al ejecutar la consulta" });
+  }
 });
-
 
 app.get("/VerLog/:IDR", async (req, res) => {
   const { IDR } = req.params;
@@ -1747,5 +1796,15 @@ app.get("/PatenteCheck/valid", async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Error al validar patente" });
+  }
+});
+
+app.get("/enviar-excel", async (req, res) => {
+  try {
+    await enviarExcel();
+    res.send("Correo enviado con éxito");
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("Error al enviar el correo");
   }
 });
