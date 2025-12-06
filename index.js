@@ -162,65 +162,7 @@ app.post("/Login", async (req, res) => {
     return res.status(500).json({ Message: "Server Error" });
   }
 });
-// app.post("/Login", async (req, res) => {
-//   const sql = "SELECT * FROM usuario WHERE RUTU = ?";
-//   try {
-//     const [rows] = await db.query(sql, [req.body.rutU]);
 
-//     if (rows.length > 0) {
-//       const user = rows[0];
-//       const isMatch = req.body.passwordU === user.PasswordU;
-
-//       if (isMatch) {
-//         const rut = user.RUTU;
-//         const secretKey = process.env.JWT_SECRET_KEY;
-//         const token = jwt.sign({ rut }, secretKey, { expiresIn: "1d" });
-
-//         const userType = user.TipoU;
-//         const nombreUsuario = user.NombreU;
-//         const instalacionU = user.InstalacionU;
-//         const instalacionUsuario = user.InstalacionU;
-
-//         // Aquí se hace la consulta para obtener el nombre de la instalación
-//         const [instalacion] = await db.query(
-//           "SELECT Nombre FROM instalacion WHERE IDI = ?",
-//           [instalacionUsuario]
-//         );
-
-//         let nombreInstalacion =
-//           instalacion.length > 0
-//             ? instalacion[0].Nombre
-//             : "Instalación no encontrada";
-
-//         res.cookie("token", token, {
-//           httpOnly: true,
-//           secure: true,
-//           domain: ".up.railway.app",
-//           sameSite: "None",
-//           maxAge: 24 * 60 * 60 * 1000, // 1 día
-//         });
-
-//         return res.json({
-//           Status: "Success",
-//           userType,
-//           nombreUsuario,
-//           rut,
-//           instalacionU,
-//           instalacionUsuario: nombreInstalacion,
-//         });
-//       } else {
-//         console.log("Error: Contraseña incorrecta");
-//         return res.json({ Message: "Credenciales incorrectas" });
-//       }
-//     } else {
-//       console.log("Error: Usuario no encontrado");
-//       return res.json({ Message: "Usuario no encontrado" });
-//     }
-//   } catch (err) {
-//     console.log("Error ejecutando la consulta:", err);
-//     return res.status(500).json({ Message: "Server Error" });
-//   }
-// });
 
 //GESTION PERSONAS REPORTADAS
 app.put("/Personas%20Reportadas/:RUTP", async (req, res) => {
