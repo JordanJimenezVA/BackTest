@@ -727,7 +727,7 @@ app.post("/FormularioPersona", async (req, res) => {
         Color,
         GuiaDE,
         SelloEn,
-        null,
+        fechaActualChile,
         instalacionU,
         NombreU,
         rutu,
